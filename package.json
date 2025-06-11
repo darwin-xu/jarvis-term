@@ -1,0 +1,12 @@
+{
+  "name": "ssh-terminal-tool",
+  "version": "0.1.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"No tests specified\""
+  },
+  "dependencies": {
+    "ssh2": "^1.11.0"
+  }
+}

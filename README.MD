@@ -43,6 +43,16 @@ git clone https://github.com/your-org/ai-dev-assistant.git
 cd ai-dev-assistant
 ```
 
+### SSH Terminal Tool
+
+Install dependencies and start a shell session on a remote host:
+```bash
+npm install
+node index.js <host> <user> <password>
+```
+Credentials can also be provided via `SSH_HOST`, `SSH_USER` and `SSH_PASS` environment variables.
+
+
 ## 🧩 Future Ideas
 
 * VS Code plugin version
