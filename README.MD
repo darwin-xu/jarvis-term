@@ -44,16 +44,16 @@ git clone https://github.com/your-org/ai-dev-assistant.git
 cd ai-dev-assistant
 ```
 
-### SSH Terminal Tool
+### Web-Based Terminal Tool
 
-Install dependencies and start a shell session on a remote host:
+Install dependencies and start the web server:
 
 ```bash
 npm install
-node index.js <host> <user> <password>
+npm start
 ```
 
-Credentials can also be provided via `SSH_HOST`, `SSH_USER` and `SSH_PASS` environment variables.
+Open `http://localhost:3000` in your browser and connect to a remote host using the provided form. Credentials can also be supplied via `SSH_HOST`, `SSH_USER` and `SSH_PASS` environment variables.
 
 ## 🧩 Future Ideas
 
