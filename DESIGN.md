@@ -5,7 +5,7 @@ This design describes how to keep SSH sessions alive on the backend even when th
 ## 1. Simple Password Check
 
 - Set an `APP_PASSWORD` environment variable when starting the server.
-- Each WebSocket connection to `/terminal` must provide a `pass` query parameter.
+- When a client first connects, it sends the password once to start a session.
 - If the provided password does not match `APP_PASSWORD`, the server rejects the connection.
 
 ## 2. Session Store
@@ -16,9 +16,9 @@ This design describes how to keep SSH sessions alive on the backend even when th
 
 ## 3. WebSocket Connection Handling
 
-1. When the browser connects to `/terminal`, verify the password and check for a provided `sessionId` parameter.
+1. When the browser connects to `/terminal`, check for a provided `sessionId` parameter.
 2. If the `sessionId` exists in the session store, attach the WebSocket to the existing shell stream.
-3. If no valid session exists, create a new SSH connection using the supplied host/user/pass and generate a new `sessionId`.
+3. If no valid session exists, verify the password and create a new SSH connection using the supplied host/user/pass. Generate a new `sessionId`.
 4. Send the `sessionId` back to the client so it can reconnect later.
 5. When the WebSocket closes, keep the SSH connection open and keep buffering output in memory (or optionally write to a file) for that session.
 6. Periodically clean up idle sessions after a configurable timeout.
