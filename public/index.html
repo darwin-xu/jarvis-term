@@ -107,6 +107,25 @@
                 display: none;
             }
 
+            #login-overlay {
+                position: absolute;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.8);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10;
+            }
+
+            #login-form {
+                background-color: #2d2d2d;
+                padding: 15px;
+                border-radius: 4px;
+                display: flex;
+                gap: 10px;
+                align-items: center;
+            }
+
             @media (max-width: 768px) {
                 #connect-form {
                     flex-direction: column;
@@ -121,6 +140,13 @@
     </head>
     <body>
         <div class="container">
+            <div id="login-overlay" style="display: none">
+                <form id="login-form">
+                    <label for="server-pass">Server Password:</label>
+                    <input id="server-pass" type="password" required />
+                    <button type="submit">Login</button>
+                </form>
+            </div>
             <form id="connect-form">
                 <label for="host">Host:</label>
                 <input
@@ -154,6 +180,40 @@
             let fitAddon;
             let socket;
             let isConnected = false;
+
+            async function checkAuth() {
+                const res = await fetch('/auth/check', {
+                    credentials: 'include',
+                });
+                const data = await res.json();
+                return data.authenticated;
+            }
+
+            async function requireAuth() {
+                const ok = await checkAuth();
+                const overlay = document.getElementById('login-overlay');
+                overlay.style.display = ok ? 'none' : 'flex';
+                return ok;
+            }
+
+            document
+                .getElementById('login-form')
+                .addEventListener('submit', async e => {
+                    e.preventDefault();
+                    const pw = document.getElementById('server-pass').value;
+                    const resp = await fetch('/auth/login', {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password: pw }),
+                    });
+                    if (resp.ok) {
+                        document.getElementById('login-overlay').style.display =
+                            'none';
+                    } else {
+                        alert('Invalid password');
+                    }
+                });
 
             // Function to resize terminal to fit container
             function resizeTerminal() {
@@ -280,10 +340,91 @@
                 }
             }
 
+            function startConnection(query) {
+                const wsProtocol =
+                    location.protocol === 'https:' ? 'wss:' : 'ws:';
+                socket = new WebSocket(
+                    `${wsProtocol}//${location.host}/terminal?${query}`
+                );
+
+                socket.onopen = () => {
+                    isConnected = true;
+                    updateStatus('SSH connecting...');
+                    document.getElementById('connect-form').style.display =
+                        'none';
+                };
+
+                socket.onmessage = e => {
+                    try {
+                        const data = JSON.parse(e.data);
+                        if (data.type === 'error') {
+                            updateStatus(data.message, true);
+                        } else if (data.type === 'ready') {
+                            if (data.sessionId) {
+                                localStorage.setItem(
+                                    'sessionId',
+                                    data.sessionId
+                                );
+                            }
+                            updateStatus('Connected');
+                            const sendTerminalSize = () => {
+                                if (term && fitAddon) {
+                                    try {
+                                        fitAddon.fit();
+                                        const { cols, rows } = term;
+                                        socket.send(
+                                            JSON.stringify({
+                                                type: 'resize',
+                                                cols,
+                                                rows,
+                                            })
+                                        );
+                                    } catch (error) {
+                                        console.warn(
+                                            'Error sending terminal size:',
+                                            error
+                                        );
+                                    }
+                                }
+                            };
+                            sendTerminalSize();
+                            setTimeout(sendTerminalSize, 100);
+                        }
+                    } catch {
+                        term.write(e.data);
+                    }
+                };
+
+                socket.onclose = event => {
+                    isConnected = false;
+                    if (event.wasClean) {
+                        updateStatus('Connection closed', true);
+                    } else {
+                        updateStatus('Connection lost', true);
+                    }
+                    term.write('\r\n\x1b[31mConnection closed.\x1b[0m\r\n');
+                };
+
+                socket.onerror = () => {
+                    isConnected = false;
+                    updateStatus('Connection failed', true);
+                };
+
+                term.onData(data => {
+                    if (socket && socket.readyState === WebSocket.OPEN) {
+                        socket.send(JSON.stringify({ type: 'data', data }));
+                    }
+                });
+            }
+
             document
                 .getElementById('connect-form')
-                .addEventListener('submit', e => {
+                .addEventListener('submit', async e => {
                     e.preventDefault();
+
+                    if (!(await requireAuth())) {
+                        return;
+                    }
 
                     if (socket) {
                         socket.close();
@@ -299,89 +440,20 @@
                     }
 
                     updateStatus('Connecting...');
-
-                    const wsProtocol =
-                        location.protocol === 'https:' ? 'wss:' : 'ws:';
-                    socket = new WebSocket(
-                        `${wsProtocol}//${location.host}/terminal?host=${encodeURIComponent(host)}&user=${encodeURIComponent(user)}&pass=${encodeURIComponent(pass)}`
-                    );
-
-                    socket.onopen = () => {
-                        isConnected = true;
-                        updateStatus('SSH connecting...');
-                        document.getElementById('connect-form').style.display =
-                            'none';
-                    };
-
-                    socket.onmessage = e => {
-                        try {
-                            // Try to parse as JSON first (for control messages)
-                            const data = JSON.parse(e.data);
-                            if (data.type === 'error') {
-                                updateStatus(data.message, true);
-                            } else if (data.type === 'ready') {
-                                updateStatus('Connected');
-                                // Terminal is ready, send the correct size immediately
-                                const sendTerminalSize = () => {
-                                    if (term && fitAddon) {
-                                        try {
-                                            fitAddon.fit();
-                                            const { cols, rows } = term;
-                                            console.log(
-                                                `Sending terminal size after ready: ${cols}x${rows}`
-                                            );
-                                            socket.send(
-                                                JSON.stringify({
-                                                    type: 'resize',
-                                                    cols: cols,
-                                                    rows: rows,
-                                                })
-                                            );
-                                        } catch (error) {
-                                            console.warn(
-                                                'Error sending terminal size:',
-                                                error
-                                            );
-                                        }
-                                    }
-                                };
-
-                                // Send size immediately and with a small delay
-                                sendTerminalSize();
-                                setTimeout(sendTerminalSize, 100);
-                            }
-                        } catch {
-                            // If not JSON, treat as terminal data
-                            term.write(e.data);
-                        }
-                    };
-
-                    socket.onclose = event => {
-                        isConnected = false;
-                        if (event.wasClean) {
-                            updateStatus('Connection closed', true);
-                        } else {
-                            updateStatus('Connection lost', true);
-                        }
-                        term.write('\r\n\x1b[31mConnection closed.\x1b[0m\r\n');
-                    };
-
-                    socket.onerror = () => {
-                        isConnected = false;
-                        updateStatus('Connection failed', true);
-                    };
-
-                    term.onData(data => {
-                        if (socket && socket.readyState === WebSocket.OPEN) {
-                            socket.send(
-                                JSON.stringify({
-                                    type: 'data',
-                                    data: data,
-                                })
-                            );
-                        }
-                    });
+                    const query = `host=${encodeURIComponent(host)}&user=${encodeURIComponent(user)}&pass=${encodeURIComponent(pass)}`;
+                    startConnection(query);
                 });
+
+            (async () => {
+                if (await requireAuth()) {
+                    const stored = localStorage.getItem('sessionId');
+                    if (stored) {
+                        startConnection(
+                            `sessionId=${encodeURIComponent(stored)}`
+                        );
+                    }
+                }
+            })();
         </script>
     </body>
 </html>
