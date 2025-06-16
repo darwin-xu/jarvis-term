@@ -5,20 +5,20 @@ This design describes how to keep SSH sessions alive on the backend even when th
 ## 1. Simple Password Check
 
 - Set an `APP_PASSWORD` environment variable when starting the server.
-- When a client first connects, it sends the password once to start a session.
+- When a user opens the web page, the browser prompts for this password.
+- If the password matches, start the session and set a cookie so future connections skip the prompt until logout.
 - If the provided password does not match `APP_PASSWORD`, the server rejects the connection.
 
 ## 2. Session Store
 
-- Maintain an in-memory map or persistent store that maps `sessionId` to an `ssh2` Client and shell stream.
-- Each session is identified only by its `sessionId`.
-- Optionally persist session metadata to disk so that server restarts can restore connections if supported.
+- Keep the active `ssh2` Client and its `sessionId` in memory.
+- Because there is only one user, we track a single session at a time.
 
 ## 3. WebSocket Connection Handling
 
-1. When the browser connects to `/terminal`, check for a provided `sessionId` parameter.
+1. When the browser connects to `/terminal`, first check for an auth cookie and a provided `sessionId` parameter.
 2. If the `sessionId` exists in the session store, attach the WebSocket to the existing shell stream.
-3. If no valid session exists, verify the password and create a new SSH connection using the supplied host/user/pass. Generate a new `sessionId`.
+3. If no valid session exists, prompt for the password (unless already authenticated), then create a new SSH connection and generate a new `sessionId`. Store the auth cookie so future visits skip the prompt.
 4. Send the `sessionId` back to the client so it can reconnect later.
 5. When the WebSocket closes, keep the SSH connection open and keep buffering output in memory (or optionally write to a file) for that session.
 6. Periodically clean up idle sessions after a configurable timeout.
