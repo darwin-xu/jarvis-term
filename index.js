@@ -76,11 +76,12 @@ app.post('/sessions/terminate', (req, res) => {
 
 const PING_INTERVAL = 15000;
 
-function attachToSession(ws, session) {
+function attachToSession(ws, session, offset = 0) {
+    ws.sentIndex = Math.max(0, offset);
     const sendBuffered = () => {
-        while (session.sentIndex < session.buffer.length) {
-            ws.send(session.buffer[session.sentIndex]);
-            session.sentIndex++;
+        while (ws.sentIndex < session.buffer.length) {
+            ws.send(session.buffer[ws.sentIndex]);
+            ws.sentIndex++;
         }
     };
 
@@ -89,15 +90,15 @@ function attachToSession(ws, session) {
         session.buffer.push(text);
         if (session.buffer.length > 2000) {
             session.buffer.shift();
-            if (session.sentIndex > 0) {
-                session.sentIndex--;
+            if (ws.sentIndex > 0) {
+                ws.sentIndex--;
             }
         }
         session.lastActive = Date.now();
         if (ws.readyState === ws.OPEN) {
             ws.send(text);
-            session.sentIndex = session.buffer.length;
         }
+        ws.sentIndex = session.buffer.length;
     };
 
     session.stream.on('data', onData);
@@ -206,10 +207,11 @@ function attachToSession(ws, session) {
 
 app.ws('/terminal', (ws, req) => {
     const { sessionId } = req.query;
+    const offset = parseInt(req.query.since, 10) || 0;
     if (sessionId) {
         if (sessions.has(sessionId)) {
             const session = sessions.get(sessionId);
-            attachToSession(ws, session);
+            attachToSession(ws, session, offset);
             return;
         } else {
             ws.send(
@@ -251,7 +253,6 @@ app.ws('/terminal', (ws, req) => {
         conn,
         stream: null,
         buffer: [],
-        sentIndex: 0,
         cols: 80,
         rows: 24,
         lastActive: Date.now(),
