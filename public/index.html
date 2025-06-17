@@ -140,7 +140,12 @@
     </head>
     <body>
         <div class="container">
-            <div id="login-overlay" role="dialog" aria-modal="true" style="display: none">
+            <div
+                id="login-overlay"
+                role="dialog"
+                aria-modal="true"
+                style="display: none"
+            >
                 <form id="login-form">
                     <label for="server-pass">Server Password:</label>
                     <input id="server-pass" type="password" required />
@@ -180,6 +185,24 @@
             let fitAddon;
             let socket;
             let isConnected = false;
+
+            function showConnectForm() {
+                document.getElementById('connect-form').style.display = 'flex';
+            }
+
+            function terminateSession() {
+                const stored = localStorage.getItem('sessionId');
+                if (!stored) {
+                    return;
+                }
+                fetch('/sessions/terminate', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionId: stored }),
+                }).catch(err => console.warn('Terminate session failed', err));
+                localStorage.removeItem('sessionId');
+            }
 
             async function checkAuth() {
                 const res = await fetch('/auth/check', {
@@ -359,6 +382,13 @@
                         const data = JSON.parse(e.data);
                         if (data.type === 'error') {
                             updateStatus(data.message, true);
+                            showConnectForm();
+                            if (
+                                data.message.includes('Invalid session') ||
+                                data.message.includes('Missing SSH')
+                            ) {
+                                localStorage.removeItem('sessionId');
+                            }
                         } else if (data.type === 'ready') {
                             if (data.sessionId) {
                                 localStorage.setItem(
@@ -403,11 +433,13 @@
                         updateStatus('Connection lost', true);
                     }
                     term.write('\r\n\x1b[31mConnection closed.\x1b[0m\r\n');
+                    showConnectForm();
                 };
 
                 socket.onerror = () => {
                     isConnected = false;
                     updateStatus('Connection failed', true);
+                    showConnectForm();
                 };
 
                 term.onData(data => {
@@ -428,6 +460,7 @@
 
                     if (socket) {
                         socket.close();
+                        terminateSession();
                     }
 
                     const host = document.getElementById('host').value.trim();
