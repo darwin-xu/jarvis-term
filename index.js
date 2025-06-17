@@ -96,6 +96,7 @@ function attachToSession(ws, session) {
         session.lastActive = Date.now();
         if (ws.readyState === ws.OPEN) {
             ws.send(text);
+            session.sentIndex = session.buffer.length;
         }
     };
 
