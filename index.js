@@ -56,6 +56,24 @@ app.get('/auth/check', (req, res) => {
     res.json({ authenticated: req.cookies.auth === '1' });
 });
 
+app.post('/sessions/terminate', (req, res) => {
+    if (req.cookies.auth !== '1') {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const { sessionId } = req.body || {};
+    const session = sessions.get(sessionId);
+    if (session) {
+        if (session.stream) {
+            session.stream.end();
+        }
+        session.conn.end();
+        sessions.delete(sessionId);
+        res.json({ ok: true });
+    } else {
+        res.status(404).json({ error: 'Session not found' });
+    }
+});
+
 function attachToSession(ws, session) {
     const sendBuffered = () => {
         for (const chunk of session.buffer) {
@@ -119,10 +137,21 @@ function attachToSession(ws, session) {
 
 app.ws('/terminal', (ws, req) => {
     const { sessionId } = req.query;
-    if (sessionId && sessions.has(sessionId)) {
-        const session = sessions.get(sessionId);
-        attachToSession(ws, session);
-        return;
+    if (sessionId) {
+        if (sessions.has(sessionId)) {
+            const session = sessions.get(sessionId);
+            attachToSession(ws, session);
+            return;
+        } else {
+            ws.send(
+                JSON.stringify({
+                    type: 'error',
+                    message: 'Invalid session ID',
+                })
+            );
+            ws.close();
+            return;
+        }
     }
 
     if (req.cookies.auth !== '1') {
