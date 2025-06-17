@@ -74,10 +74,13 @@ app.post('/sessions/terminate', (req, res) => {
     }
 });
 
+const PING_INTERVAL = 15000;
+
 function attachToSession(ws, session) {
     const sendBuffered = () => {
-        for (const chunk of session.buffer) {
-            ws.send(chunk);
+        while (session.sentIndex < session.buffer.length) {
+            ws.send(session.buffer[session.sentIndex]);
+            session.sentIndex++;
         }
     };
 
@@ -86,6 +89,9 @@ function attachToSession(ws, session) {
         session.buffer.push(text);
         if (session.buffer.length > 2000) {
             session.buffer.shift();
+            if (session.sentIndex > 0) {
+                session.sentIndex--;
+            }
         }
         session.lastActive = Date.now();
         if (ws.readyState === ws.OPEN) {
@@ -121,10 +127,6 @@ function attachToSession(ws, session) {
     session.conn.on('end', handleSshClose);
 
     ws.isAlive = true;
-    ws.on('pong', () => {
-        ws.isAlive = true;
-        session.lastActive = Date.now();
-    });
 
     const pingInterval = setInterval(() => {
         if (ws.readyState !== ws.OPEN) {
@@ -138,17 +140,22 @@ function attachToSession(ws, session) {
         }
         ws.isAlive = false;
         try {
-            ws.ping();
+            ws.send(JSON.stringify({ type: 'ping' }));
             session.lastActive = Date.now();
         } catch {
             // ignore errors during ping
         }
-    }, 30000);
+    }, PING_INTERVAL);
 
     ws.on('message', msg => {
         try {
             const data = JSON.parse(msg);
-            if (data.type === 'resize') {
+            if (data.type === 'pong') {
+                ws.isAlive = true;
+                session.lastActive = Date.now();
+            } else if (data.type === 'ping') {
+                ws.send(JSON.stringify({ type: 'pong' }));
+            } else if (data.type === 'resize') {
                 session.cols = data.cols || 80;
                 session.rows = data.rows || 24;
                 if (session.stream.setWindow) {
@@ -243,6 +250,7 @@ app.ws('/terminal', (ws, req) => {
         conn,
         stream: null,
         buffer: [],
+        sentIndex: 0,
         cols: 80,
         rows: 24,
         lastActive: Date.now(),
