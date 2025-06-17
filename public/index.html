@@ -185,9 +185,40 @@
             let fitAddon;
             let socket;
             let isConnected = false;
+            let reconnectTimeout;
+            let reconnectAttempts = 0;
+            let manualClose = false;
 
             function showConnectForm() {
                 document.getElementById('connect-form').style.display = 'flex';
+            }
+
+            function scheduleReconnect() {
+                const stored = localStorage.getItem('sessionId');
+                if (!stored) {
+                    showConnectForm();
+                    return;
+                }
+                const delay = Math.min(
+                    15000,
+                    1000 * Math.pow(2, reconnectAttempts)
+                );
+                updateStatus(
+                    `Reconnecting in ${Math.round(delay / 1000)}s...`,
+                    true
+                );
+                reconnectTimeout = setTimeout(() => {
+                    reconnectAttempts++;
+                    startConnection(`sessionId=${encodeURIComponent(stored)}`);
+                }, delay);
+            }
+
+            function clearReconnect() {
+                if (reconnectTimeout) {
+                    clearTimeout(reconnectTimeout);
+                    reconnectTimeout = null;
+                    reconnectAttempts = 0;
+                }
             }
 
             function terminateSession() {
@@ -366,6 +397,8 @@
             function startConnection(query) {
                 const wsProtocol =
                     location.protocol === 'https:' ? 'wss:' : 'ws:';
+                manualClose = false;
+                clearReconnect();
                 socket = new WebSocket(
                     `${wsProtocol}//${location.host}/terminal?${query}`
                 );
@@ -375,6 +408,7 @@
                     updateStatus('SSH connecting...');
                     document.getElementById('connect-form').style.display =
                         'none';
+                    clearReconnect();
                 };
 
                 socket.onmessage = e => {
@@ -382,14 +416,17 @@
                         const data = JSON.parse(e.data);
                         if (data.type === 'error') {
                             updateStatus(data.message, true);
-                            showConnectForm();
+                            clearReconnect();
                             if (
                                 data.message.includes('Invalid session') ||
                                 data.message.includes('Missing SSH')
                             ) {
+                                manualClose = true;
                                 localStorage.removeItem('sessionId');
                             }
+                            showConnectForm();
                         } else if (data.type === 'ready') {
+                            clearReconnect();
                             if (data.sessionId) {
                                 localStorage.setItem(
                                     'sessionId',
@@ -433,13 +470,21 @@
                         updateStatus('Connection lost', true);
                     }
                     term.write('\r\n\x1b[31mConnection closed.\x1b[0m\r\n');
-                    showConnectForm();
+                    if (!manualClose) {
+                        scheduleReconnect();
+                    } else {
+                        showConnectForm();
+                    }
                 };
 
                 socket.onerror = () => {
                     isConnected = false;
                     updateStatus('Connection failed', true);
-                    showConnectForm();
+                    if (!manualClose) {
+                        scheduleReconnect();
+                    } else {
+                        showConnectForm();
+                    }
                 };
 
                 if (window.dataDisposable) {
@@ -462,6 +507,8 @@
                     }
 
                     if (socket) {
+                        manualClose = true;
+                        clearReconnect();
                         socket.close();
                         terminateSession();
                     }
@@ -490,6 +537,13 @@
                     }
                 }
             })();
+
+            window.addEventListener('beforeunload', () => {
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    manualClose = true;
+                    socket.close();
+                }
+            });
         </script>
     </body>
 </html>
