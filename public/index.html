@@ -188,6 +188,8 @@
             let reconnectTimeout;
             let reconnectAttempts = 0;
             let manualClose = false;
+            let pingTimer;
+            const PING_INTERVAL = 15000;
 
             function showConnectForm() {
                 document.getElementById('connect-form').style.display = 'flex';
@@ -399,6 +401,7 @@
                     location.protocol === 'https:' ? 'wss:' : 'ws:';
                 manualClose = false;
                 clearReconnect();
+                clearInterval(pingTimer);
                 socket = new WebSocket(
                     `${wsProtocol}//${location.host}/terminal?${query}`
                 );
@@ -409,11 +412,20 @@
                     document.getElementById('connect-form').style.display =
                         'none';
                     clearReconnect();
+                    pingTimer = setInterval(() => {
+                        if (socket && socket.readyState === WebSocket.OPEN) {
+                            socket.send(JSON.stringify({ type: 'ping' }));
+                        }
+                    }, PING_INTERVAL);
                 };
 
                 socket.onmessage = e => {
                     try {
                         const data = JSON.parse(e.data);
+                        if (data.type === 'ping') {
+                            socket.send(JSON.stringify({ type: 'pong' }));
+                            return;
+                        }
                         if (data.type === 'error') {
                             updateStatus(data.message, true);
                             clearReconnect();
@@ -464,21 +476,23 @@
 
                 socket.onclose = event => {
                     isConnected = false;
+                    clearInterval(pingTimer);
                     if (event.wasClean) {
                         updateStatus('Connection closed', true);
                     } else {
                         updateStatus('Connection lost', true);
                     }
-                    term.write('\r\n\x1b[31mConnection closed.\x1b[0m\r\n');
-                    if (!manualClose) {
-                        scheduleReconnect();
-                    } else {
+                    if (manualClose) {
+                        term.write('\r\n\x1b[31mConnection closed.\x1b[0m\r\n');
                         showConnectForm();
+                    } else {
+                        scheduleReconnect();
                     }
                 };
 
                 socket.onerror = () => {
                     isConnected = false;
+                    clearInterval(pingTimer);
                     updateStatus('Connection failed', true);
                     if (!manualClose) {
                         scheduleReconnect();
@@ -509,6 +523,7 @@
                     if (socket) {
                         manualClose = true;
                         clearReconnect();
+                        clearInterval(pingTimer);
                         socket.close();
                         terminateSession();
                     }
@@ -541,6 +556,7 @@
             window.addEventListener('beforeunload', () => {
                 if (socket && socket.readyState === WebSocket.OPEN) {
                     manualClose = true;
+                    clearInterval(pingTimer);
                     socket.close();
                 }
             });
