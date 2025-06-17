@@ -442,7 +442,10 @@
                     showConnectForm();
                 };
 
-                term.onData(data => {
+                if (window.dataDisposable) {
+                    window.dataDisposable.dispose();
+                }
+                window.dataDisposable = term.onData(data => {
                     if (socket && socket.readyState === WebSocket.OPEN) {
                         socket.send(JSON.stringify({ type: 'data', data }));
                     }
