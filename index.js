@@ -108,6 +108,7 @@ function attachToSession(ws, session, offset = 0) {
     function handleSshClose() {
         if (closed) return;
         closed = true;
+        console.log(`SSH session ${session.id} closed`);
         clearInterval(pingInterval);
         session.lastActive = Date.now();
         sessions.delete(session.id);
@@ -137,6 +138,9 @@ function attachToSession(ws, session, offset = 0) {
         }
         if (!ws.isAlive) {
             clearInterval(pingInterval);
+            console.log(
+                `Terminating stale WebSocket for session ${session.id}`
+            );
             ws.terminate();
             return;
         }
@@ -172,6 +176,7 @@ function attachToSession(ws, session, offset = 0) {
     });
 
     ws.on('close', () => {
+        console.log(`WebSocket for session ${session.id} closed`);
         session.stream.removeListener('data', onData);
         session.stream.stderr.removeListener('data', onData);
         session.stream.removeListener('close', handleSshClose);
@@ -183,7 +188,8 @@ function attachToSession(ws, session, offset = 0) {
         clearInterval(pingInterval);
     });
 
-    ws.on('error', () => {
+    ws.on('error', err => {
+        console.log(`WebSocket error for session ${session.id}:`, err);
         session.stream.removeListener('data', onData);
         session.stream.stderr.removeListener('data', onData);
         session.stream.removeListener('close', handleSshClose);
@@ -260,6 +266,7 @@ app.ws('/terminal', (ws, req) => {
     sessions.set(id, session);
 
     conn.on('ready', () => {
+        console.log(`SSH connection ready for session ${id}`);
         conn.shell(
             {
                 term: 'xterm-256color',
@@ -285,6 +292,7 @@ app.ws('/terminal', (ws, req) => {
         );
     })
         .on('error', err => {
+            console.log(`SSH connection error for session ${id}:`, err);
             ws.send(
                 JSON.stringify({
                     type: 'error',
