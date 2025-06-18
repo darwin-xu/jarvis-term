@@ -56,10 +56,33 @@ app.get('/auth/check', (req, res) => {
     res.json({ authenticated: req.cookies.auth === '1' });
 });
 
+app.post('/sessions/terminate', (req, res) => {
+    if (req.cookies.auth !== '1') {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const { sessionId } = req.body || {};
+    const session = sessions.get(sessionId);
+    if (session) {
+        if (session.stream) {
+            session.stream.end();
+        }
+        session.conn.end();
+        sessions.delete(sessionId);
+        res.json({ ok: true });
+    } else {
+        res.status(404).json({ error: 'Session not found' });
+    }
+});
+
+const PING_INTERVAL = 15000;
+const log = (...args) => console.log(new Date().toISOString(), ...args);
+
 function attachToSession(ws, session) {
+    log(`Attaching WebSocket to session ${session.id}`);
     const sendBuffered = () => {
-        for (const chunk of session.buffer) {
-            ws.send(chunk);
+        while (session.sentIndex < session.buffer.length) {
+            ws.send(session.buffer[session.sentIndex]);
+            session.sentIndex++;
         }
     };
 
@@ -68,20 +91,75 @@ function attachToSession(ws, session) {
         session.buffer.push(text);
         if (session.buffer.length > 2000) {
             session.buffer.shift();
+            if (session.sentIndex > 0) {
+                session.sentIndex--;
+            }
         }
         session.lastActive = Date.now();
         if (ws.readyState === ws.OPEN) {
             ws.send(text);
+            session.sentIndex = session.buffer.length;
         }
     };
 
     session.stream.on('data', onData);
     session.stream.stderr.on('data', onData);
 
+    let closed = false;
+    function handleSshClose() {
+        if (closed) return;
+        closed = true;
+        log(`SSH session ${session.id} closed`);
+        clearInterval(pingInterval);
+        session.lastActive = Date.now();
+        sessions.delete(session.id);
+        if (ws.readyState === ws.OPEN) {
+            ws.send(
+                JSON.stringify({
+                    type: 'error',
+                    message: 'SSH session closed',
+                })
+            );
+            ws.close();
+        }
+    }
+
+    session.stream.on('close', handleSshClose);
+    session.stream.on('exit', handleSshClose);
+    session.stream.on('end', handleSshClose);
+    session.conn.on('close', handleSshClose);
+    session.conn.on('end', handleSshClose);
+
+    ws.isAlive = true;
+
+    const pingInterval = setInterval(() => {
+        if (ws.readyState !== ws.OPEN) {
+            clearInterval(pingInterval);
+            return;
+        }
+        if (!ws.isAlive) {
+            clearInterval(pingInterval);
+            ws.terminate();
+            return;
+        }
+        ws.isAlive = false;
+        try {
+            ws.send(JSON.stringify({ type: 'ping' }));
+            session.lastActive = Date.now();
+        } catch {
+            // ignore errors during ping
+        }
+    }, PING_INTERVAL);
+
     ws.on('message', msg => {
         try {
             const data = JSON.parse(msg);
-            if (data.type === 'resize') {
+            if (data.type === 'pong') {
+                ws.isAlive = true;
+                session.lastActive = Date.now();
+            } else if (data.type === 'ping') {
+                ws.send(JSON.stringify({ type: 'pong' }));
+            } else if (data.type === 'resize') {
                 session.cols = data.cols || 80;
                 session.rows = data.rows || 24;
                 if (session.stream.setWindow) {
@@ -95,16 +173,30 @@ function attachToSession(ws, session) {
         }
     });
 
-    ws.on('close', () => {
+    ws.on('close', (code, reason) => {
+        log(`WebSocket for session ${session.id} closed`, code, reason);
         session.stream.removeListener('data', onData);
         session.stream.stderr.removeListener('data', onData);
+        session.stream.removeListener('close', handleSshClose);
+        session.stream.removeListener('exit', handleSshClose);
+        session.stream.removeListener('end', handleSshClose);
+        session.conn.removeListener('close', handleSshClose);
+        session.conn.removeListener('end', handleSshClose);
         session.lastActive = Date.now();
+        clearInterval(pingInterval);
     });
 
-    ws.on('error', () => {
+    ws.on('error', err => {
+        log(`WebSocket error for session ${session.id}`, err.message);
         session.stream.removeListener('data', onData);
         session.stream.stderr.removeListener('data', onData);
+        session.stream.removeListener('close', handleSshClose);
+        session.stream.removeListener('exit', handleSshClose);
+        session.stream.removeListener('end', handleSshClose);
+        session.conn.removeListener('close', handleSshClose);
+        session.conn.removeListener('end', handleSshClose);
         session.lastActive = Date.now();
+        clearInterval(pingInterval);
     });
 
     ws.send(
@@ -119,14 +211,27 @@ function attachToSession(ws, session) {
 
 app.ws('/terminal', (ws, req) => {
     const { sessionId } = req.query;
-    if (sessionId && sessions.has(sessionId)) {
-        const session = sessions.get(sessionId);
-        attachToSession(ws, session);
-        return;
+    if (sessionId) {
+        if (sessions.has(sessionId)) {
+            const session = sessions.get(sessionId);
+            attachToSession(ws, session);
+            return;
+        } else {
+            ws.send(
+                JSON.stringify({
+                    type: 'error',
+                    message: 'Invalid session ID',
+                })
+            );
+            log('Closing WebSocket due to invalid session');
+            ws.close();
+            return;
+        }
     }
 
     if (req.cookies.auth !== '1') {
         ws.send(JSON.stringify({ type: 'error', message: 'Unauthorized' }));
+        log('Closing WebSocket: unauthorized access');
         ws.close();
         return;
     }
@@ -142,6 +247,7 @@ app.ws('/terminal', (ws, req) => {
                 message: 'Missing SSH credentials',
             })
         );
+        log('Closing WebSocket: missing SSH credentials');
         ws.close();
         return;
     }
@@ -153,11 +259,13 @@ app.ws('/terminal', (ws, req) => {
         conn,
         stream: null,
         buffer: [],
+        sentIndex: 0,
         cols: 80,
         rows: 24,
         lastActive: Date.now(),
     };
     sessions.set(id, session);
+    log(`Created SSH session ${id} for ${username}@${host}`);
 
     conn.on('ready', () => {
         conn.shell(
@@ -185,6 +293,7 @@ app.ws('/terminal', (ws, req) => {
         );
     })
         .on('error', err => {
+            log(`SSH connection error for session ${id}: ${err.message}`);
             ws.send(
                 JSON.stringify({
                     type: 'error',
@@ -199,6 +308,7 @@ app.ws('/terminal', (ws, req) => {
             username,
             password,
             keepaliveInterval: 30000,
+            keepaliveCountMax: 10,
             readyTimeout: 20000,
         });
 });

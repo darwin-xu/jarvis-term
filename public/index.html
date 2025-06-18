@@ -140,7 +140,12 @@
     </head>
     <body>
         <div class="container">
-            <div id="login-overlay" role="dialog" aria-modal="true" style="display: none">
+            <div
+                id="login-overlay"
+                role="dialog"
+                aria-modal="true"
+                style="display: none"
+            >
                 <form id="login-form">
                     <label for="server-pass">Server Password:</label>
                     <input id="server-pass" type="password" required />
@@ -180,6 +185,72 @@
             let fitAddon;
             let socket;
             let isConnected = false;
+            let reconnectTimeout;
+            let reconnectAttempts = 0;
+            const MAX_RECONNECT_ATTEMPTS = 5;
+            let reconnectPaused = false;
+            let manualClose = false;
+            let pingTimer;
+            const PING_INTERVAL = 15000;
+
+            function showConnectForm() {
+                document.getElementById('connect-form').style.display = 'flex';
+            }
+
+            function scheduleReconnect() {
+                const stored = localStorage.getItem('sessionId');
+                if (!stored) {
+                    showConnectForm();
+                    return;
+                }
+                if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+                    updateStatus(
+                        'Reconnect failed. Press any key to retry.',
+                        true
+                    );
+                    console.log('Max reconnect attempts reached');
+                    reconnectPaused = true;
+                    return;
+                }
+                const delay = Math.min(
+                    15000,
+                    1000 * Math.pow(2, reconnectAttempts)
+                );
+                updateStatus(
+                    `Reconnecting in ${Math.round(delay / 1000)}s...`,
+                    true
+                );
+                console.log(
+                    `Scheduling reconnect attempt ${reconnectAttempts + 1} in ${delay}ms`
+                );
+                reconnectTimeout = setTimeout(() => {
+                    reconnectAttempts++;
+                    startConnection(`sessionId=${encodeURIComponent(stored)}`);
+                }, delay);
+            }
+
+            function clearReconnect() {
+                if (reconnectTimeout) {
+                    clearTimeout(reconnectTimeout);
+                    reconnectTimeout = null;
+                    reconnectAttempts = 0;
+                    reconnectPaused = false;
+                }
+            }
+
+            function terminateSession() {
+                const stored = localStorage.getItem('sessionId');
+                if (!stored) {
+                    return;
+                }
+                fetch('/sessions/terminate', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionId: stored }),
+                }).catch(err => console.warn('Terminate session failed', err));
+                localStorage.removeItem('sessionId');
+            }
 
             async function checkAuth() {
                 const res = await fetch('/auth/check', {
@@ -343,6 +414,9 @@
             function startConnection(query) {
                 const wsProtocol =
                     location.protocol === 'https:' ? 'wss:' : 'ws:';
+                manualClose = false;
+                clearReconnect();
+                clearInterval(pingTimer);
                 socket = new WebSocket(
                     `${wsProtocol}//${location.host}/terminal?${query}`
                 );
@@ -352,14 +426,34 @@
                     updateStatus('SSH connecting...');
                     document.getElementById('connect-form').style.display =
                         'none';
+                    clearReconnect();
+                    pingTimer = setInterval(() => {
+                        if (socket && socket.readyState === WebSocket.OPEN) {
+                            socket.send(JSON.stringify({ type: 'ping' }));
+                        }
+                    }, PING_INTERVAL);
                 };
 
                 socket.onmessage = e => {
                     try {
                         const data = JSON.parse(e.data);
+                        if (data.type === 'ping') {
+                            socket.send(JSON.stringify({ type: 'pong' }));
+                            return;
+                        }
                         if (data.type === 'error') {
                             updateStatus(data.message, true);
+                            clearReconnect();
+                            if (
+                                data.message.includes('Invalid session') ||
+                                data.message.includes('Missing SSH')
+                            ) {
+                                manualClose = true;
+                                localStorage.removeItem('sessionId');
+                            }
+                            showConnectForm();
                         } else if (data.type === 'ready') {
+                            clearReconnect();
                             if (data.sessionId) {
                                 localStorage.setItem(
                                     'sessionId',
@@ -396,23 +490,45 @@
                 };
 
                 socket.onclose = event => {
+                    console.log('WebSocket closed', event.code, event.reason);
                     isConnected = false;
+                    clearInterval(pingTimer);
                     if (event.wasClean) {
                         updateStatus('Connection closed', true);
                     } else {
                         updateStatus('Connection lost', true);
                     }
-                    term.write('\r\n\x1b[31mConnection closed.\x1b[0m\r\n');
+                    if (manualClose) {
+                        term.write('\r\n\x1b[31mConnection closed.\x1b[0m\r\n');
+                        showConnectForm();
+                    } else {
+                        scheduleReconnect();
+                    }
                 };
 
                 socket.onerror = () => {
+                    console.log('WebSocket error');
                     isConnected = false;
+                    clearInterval(pingTimer);
                     updateStatus('Connection failed', true);
+                    if (!manualClose) {
+                        scheduleReconnect();
+                    } else {
+                        showConnectForm();
+                    }
                 };
 
-                term.onData(data => {
+                if (window.dataDisposable) {
+                    window.dataDisposable.dispose();
+                }
+                window.dataDisposable = term.onData(data => {
                     if (socket && socket.readyState === WebSocket.OPEN) {
                         socket.send(JSON.stringify({ type: 'data', data }));
+                    } else if (reconnectPaused) {
+                        reconnectAttempts = 0;
+                        reconnectPaused = false;
+                        console.log('User input detected, retrying connection');
+                        scheduleReconnect();
                     }
                 });
             }
@@ -427,7 +543,11 @@
                     }
 
                     if (socket) {
+                        manualClose = true;
+                        clearReconnect();
+                        clearInterval(pingTimer);
                         socket.close();
+                        terminateSession();
                     }
 
                     const host = document.getElementById('host').value.trim();
@@ -454,6 +574,14 @@
                     }
                 }
             })();
+
+            window.addEventListener('beforeunload', () => {
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    manualClose = true;
+                    clearInterval(pingTimer);
+                    socket.close();
+                }
+            });
         </script>
     </body>
 </html>
