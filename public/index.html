@@ -220,6 +220,9 @@
                     15000,
                     1000 * Math.pow(2, reconnectAttempts)
                 );
+                log(
+                    `Scheduling reconnect attempt ${reconnectAttempts + 1} in ${delay}ms`
+                );
                 updateStatus(
                     `Reconnecting in ${Math.round(delay / 1000)}s...`,
                     true
@@ -238,6 +241,7 @@
                 }
                 waitingForKey = false;
                 reconnectAttempts = 0;
+                log('Manual key press triggered reconnect');
                 const stored = localStorage.getItem('sessionId');
                 if (stored) {
                     startConnection(
@@ -432,18 +436,21 @@
                 manualClose = false;
                 clearReconnect();
                 clearInterval(pingTimer);
+                log('Opening WebSocket');
                 socket = new WebSocket(
                     `${wsProtocol}//${location.host}/terminal?${query}`
                 );
 
                 socket.onopen = () => {
                     isConnected = true;
+                    log('WebSocket opened');
                     updateStatus('SSH connecting...');
                     document.getElementById('connect-form').style.display =
                         'none';
                     clearReconnect();
                     pingTimer = setInterval(() => {
                         if (socket && socket.readyState === WebSocket.OPEN) {
+                            log('Sending ping');
                             socket.send(JSON.stringify({ type: 'ping' }));
                         }
                     }, PING_INTERVAL);
@@ -453,7 +460,13 @@
                     try {
                         const data = JSON.parse(e.data);
                         if (data.type === 'ping') {
+                            log('Received ping from server');
                             socket.send(JSON.stringify({ type: 'pong' }));
+                            log('Sent pong to server');
+                            return;
+                        }
+                        if (data.type === 'pong') {
+                            log('Received pong from server');
                             return;
                         }
                         if (data.type === 'error') {
@@ -560,6 +573,7 @@
                         manualClose = true;
                         clearReconnect();
                         clearInterval(pingTimer);
+                        log('Closing existing WebSocket');
                         socket.close();
                         terminateSession();
                     }
@@ -574,6 +588,7 @@
                     }
 
                     updateStatus('Connecting...');
+                    log(`Connecting to ${host} as ${user}`);
                     bufferIndex = 0;
                     const query = `host=${encodeURIComponent(host)}&user=${encodeURIComponent(user)}&pass=${encodeURIComponent(pass)}`;
                     startConnection(query);
@@ -594,6 +609,7 @@
                 if (socket && socket.readyState === WebSocket.OPEN) {
                     manualClose = true;
                     clearInterval(pingTimer);
+                    log('Closing WebSocket before unload');
                     socket.close();
                 }
             });
