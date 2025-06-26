@@ -4,6 +4,7 @@
     "main": "index.js",
     "scripts": {
         "start": "node index.js",
+        "run:ai": "node runWithAI.js",
         "test": "echo \"No tests specified\"",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
