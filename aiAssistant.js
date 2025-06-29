@@ -41,9 +41,11 @@ function runCommand(cmd) {
 class AIAssistant {
     /**
      * @param {LLMAdapter} llm Language model client implementing complete()
+     * @param {(cmd: string) => Promise<{code:number,stdout:string,stderr:string}>} [runner] Command execution function
      */
-    constructor(llm) {
+    constructor(llm, runner = runCommand) {
         this.llm = llm;
+        this.runCommand = runner;
     }
 
     /**
@@ -64,7 +66,7 @@ class AIAssistant {
             const command = await this.llm.complete(history);
             history.push({ role: 'assistant', content: command });
             log(`Executing: ${command}`);
-            const result = await runCommand(command);
+            const result = await this.runCommand(command);
             if (result.code === 0) {
                 log('Command succeeded');
                 return result.stdout;
@@ -77,4 +79,4 @@ class AIAssistant {
     }
 }
 
-module.exports = { AIAssistant, LLMAdapter, EchoLLM };
+module.exports = { AIAssistant, LLMAdapter, EchoLLM, runCommand };

@@ -4,6 +4,7 @@ const cookieParser = require('cookie-parser');
 const { Client } = require('ssh2');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+const { AIAssistant, EchoLLM } = require('./aiAssistant');
 
 const APP_PASSWORD = process.env.APP_PASSWORD;
 const SESSION_TIMEOUT_MS =
@@ -21,6 +22,28 @@ const sessions = new Map();
 
 function log(...args) {
     console.log(new Date().toISOString(), ...args);
+}
+
+function runSshCommand(session, cmd) {
+    return new Promise(resolve => {
+        session.conn.exec(cmd, (err, stream) => {
+            if (err) {
+                resolve({ code: 1, stdout: '', stderr: err.message });
+                return;
+            }
+            let stdout = '';
+            let stderr = '';
+            stream.on('close', code => {
+                resolve({ code: code || 0, stdout, stderr });
+            });
+            stream.on('data', d => {
+                stdout += d.toString();
+            });
+            stream.stderr.on('data', d => {
+                stderr += d.toString();
+            });
+        });
+    });
 }
 
 function cleanupSessions() {
@@ -76,6 +99,29 @@ app.post('/sessions/terminate', (req, res) => {
         res.json({ ok: true });
     } else {
         res.status(404).json({ error: 'Session not found' });
+    }
+});
+
+app.post('/ai/run', async (req, res) => {
+    if (req.cookies.auth !== '1') {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const { sessionId, prompt } = req.body || {};
+    const session = sessions.get(sessionId);
+    if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+    }
+    if (!prompt) {
+        return res.status(400).json({ error: 'Missing prompt' });
+    }
+    const assistant = new AIAssistant(new EchoLLM(), cmd =>
+        runSshCommand(session, cmd)
+    );
+    try {
+        const output = await assistant.executePrompt(prompt);
+        res.json({ output });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 

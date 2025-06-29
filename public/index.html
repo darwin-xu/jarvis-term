@@ -176,6 +176,18 @@
                 <div id="terminal"></div>
                 <div class="status" id="status">Connected</div>
             </div>
+            <form
+                id="ai-form"
+                style="
+                    display: none;
+                    padding: 10px;
+                    background: #2d2d2d;
+                    gap: 10px;
+                "
+            >
+                <input id="ai-input" placeholder="Ask AI..." style="flex: 1" />
+                <button type="submit">Run</button>
+            </form>
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
@@ -489,6 +501,8 @@
                                 );
                             }
                             updateStatus('Connected');
+                            document.getElementById('ai-form').style.display =
+                                'flex';
                             const sendTerminalSize = () => {
                                 if (term && fitAddon) {
                                     try {
@@ -527,6 +541,7 @@
                     } else {
                         updateStatus('Connection lost', true);
                     }
+                    document.getElementById('ai-form').style.display = 'none';
                     if (manualClose) {
                         term.write('\r\n\x1b[31mConnection closed.\x1b[0m\r\n');
                         bufferIndex = 0;
@@ -541,6 +556,7 @@
                     clearInterval(pingTimer);
                     log('WebSocket error');
                     updateStatus('Connection failed', true);
+                    document.getElementById('ai-form').style.display = 'none';
                     if (!manualClose) {
                         scheduleReconnect();
                     } else {
@@ -592,6 +608,44 @@
                     bufferIndex = 0;
                     const query = `host=${encodeURIComponent(host)}&user=${encodeURIComponent(user)}&pass=${encodeURIComponent(pass)}`;
                     startConnection(query);
+                });
+
+            document
+                .getElementById('ai-form')
+                .addEventListener('submit', async e => {
+                    e.preventDefault();
+                    const prompt = document
+                        .getElementById('ai-input')
+                        .value.trim();
+                    if (!prompt) return;
+                    const sessionId = localStorage.getItem('sessionId');
+                    if (!sessionId) {
+                        updateStatus('No active session', true);
+                        return;
+                    }
+                    updateStatus('Running via AI...');
+                    try {
+                        const resp = await fetch('/ai/run', {
+                            method: 'POST',
+                            credentials: 'include',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ sessionId, prompt }),
+                        });
+                        const data = await resp.json();
+                        if (resp.ok) {
+                            term.write(
+                                '\r\n\x1b[32m' + data.output + '\x1b[0m\r\n'
+                            );
+                        } else {
+                            term.write(
+                                '\r\n\x1b[31mAI error: ' +
+                                    data.error +
+                                    '\x1b[0m\r\n'
+                            );
+                        }
+                    } catch (err) {
+                        term.write('\r\n\x1b[31mAI request failed\x1b[0m\r\n');
+                    }
                 });
 
             (async () => {
