@@ -1,52 +1,59 @@
+const express = require('express');
+const expressWs = require('express-ws');
 const { Client } = require('ssh2');
+const path = require('path');
 
-const host = process.argv[2] || process.env.SSH_HOST;
-const username = process.argv[3] || process.env.SSH_USER;
-const password = process.argv[4] || process.env.SSH_PASS;
+const app = express();
+expressWs(app);
+const PORT = process.env.PORT || 3000;
 
-if (!host || !username || !password) {
-    console.log('Usage: node index.js <host> <username> <password>');
-    process.exit(1);
-}
+app.use(express.static(path.join(__dirname, 'public')));
 
-const conn = new Client();
-conn.on('ready', () => {
-    console.log('SSH connection established. Opening shell...');
-    
-    // Get current terminal size
-    const { columns, rows } = process.stdout;
-    
-    conn.shell({
-        cols: columns || 80,
-        rows: rows || 24,
-        term: process.env.TERM || 'xterm-256color'
-    }, (err, stream) => {
-        if (err) {
-            console.error('Shell error:', err);
-            conn.end();
-            return;
-        }
-        
-        process.stdin.setRawMode(true);
-        process.stdin.resume();
-        process.stdin.pipe(stream);
-        stream.pipe(process.stdout);
-        stream.stderr.pipe(process.stderr);
-        
-        // Handle terminal resize events
-        process.stdout.on('resize', () => {
-            const { columns, rows } = process.stdout;
-            stream.setWindow(rows, columns);
-        });
-        
-        stream.on('close', () => {
-            process.stdin.setRawMode(false);
-            process.stdin.pause();
-            conn.end();
-        });
-    });
-})
-    .on('error', err => {
-        console.error('Connection error:', err);
+app.ws('/terminal', (ws, req) => {
+    const host = req.query.host || process.env.SSH_HOST;
+    const username = req.query.user || process.env.SSH_USER;
+    const password = req.query.pass || process.env.SSH_PASS;
+
+    if (!host || !username || !password) {
+        ws.send('Missing SSH credentials');
+        ws.close();
+        return;
+    }
+
+    const conn = new Client();
+
+    conn.on('ready', () => {
+        conn.shell(
+            { term: 'xterm-256color', cols: 80, rows: 24 },
+            (err, stream) => {
+                if (err) {
+                    ws.send('Shell error: ' + err.message);
+                    ws.close();
+                    return;
+                }
+
+                ws.on('message', msg => stream.write(msg));
+                stream.on('data', data => ws.send(data.toString('utf8')));
+                stream.stderr.on('data', data =>
+                    ws.send(data.toString('utf8'))
+                );
+
+                stream.on('close', () => {
+                    conn.end();
+                    ws.close();
+                });
+            }
+        );
     })
-    .connect({ host, username, password });
+        .on('error', err => {
+            ws.send('Connection error: ' + err.message);
+            ws.close();
+        })
+        .connect({ host, username, password });
+
+    ws.on('close', () => conn.end());
+});
+
+app.listen(PORT, () => {
+    console.log(`Web terminal server running at http://localhost:${PORT}`);
+});

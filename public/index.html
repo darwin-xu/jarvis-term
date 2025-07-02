@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css"
+        />
+        <style>
+            html,
+            body {
+                height: 100%;
+                margin: 0;
+            }
+            #terminal {
+                height: calc(100% - 40px);
+            }
+            form {
+                padding: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <form id="connect-form">
+            Host <input id="host" required /> User
+            <input id="user" required /> Password
+            <input id="pass" type="password" required />
+            <button type="submit">Connect</button>
+        </form>
+        <div id="terminal"></div>
+        <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
+        <script>
+            const term = new Terminal();
+            term.open(document.getElementById('terminal'));
+            let socket;
+
+            document
+                .getElementById('connect-form')
+                .addEventListener('submit', e => {
+                    e.preventDefault();
+                    const host = document.getElementById('host').value;
+                    const user = document.getElementById('user').value;
+                    const pass = document.getElementById('pass').value;
+                    socket = new WebSocket(
+                        `ws://${location.host}/terminal?host=${encodeURIComponent(host)}&user=${encodeURIComponent(user)}&pass=${encodeURIComponent(pass)}`
+                    );
+                    socket.onmessage = e => term.write(e.data);
+                    socket.onclose = () => term.write('\r\nConnection closed.');
+                    term.onData(data => socket.send(data));
+                    document.getElementById('connect-form').style.display =
+                        'none';
+                });
+        </script>
+    </body>
+</html>
