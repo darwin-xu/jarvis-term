@@ -189,6 +189,7 @@
             let reconnectAttempts = 0;
             let manualClose = false;
             let pingTimer;
+            let bufferIndex = 0;
             const PING_INTERVAL = 15000;
 
             function showConnectForm() {
@@ -211,7 +212,9 @@
                 );
                 reconnectTimeout = setTimeout(() => {
                     reconnectAttempts++;
-                    startConnection(`sessionId=${encodeURIComponent(stored)}`);
+                    startConnection(
+                        `sessionId=${encodeURIComponent(stored)}&since=${bufferIndex}`
+                    );
                 }, delay);
             }
 
@@ -471,6 +474,7 @@
                         }
                     } catch {
                         term.write(e.data);
+                        bufferIndex++;
                     }
                 };
 
@@ -484,6 +488,7 @@
                     }
                     if (manualClose) {
                         term.write('\r\n\x1b[31mConnection closed.\x1b[0m\r\n');
+                        bufferIndex = 0;
                         showConnectForm();
                     } else {
                         scheduleReconnect();
@@ -497,6 +502,7 @@
                     if (!manualClose) {
                         scheduleReconnect();
                     } else {
+                        bufferIndex = 0;
                         showConnectForm();
                     }
                 };
@@ -538,6 +544,7 @@
                     }
 
                     updateStatus('Connecting...');
+                    bufferIndex = 0;
                     const query = `host=${encodeURIComponent(host)}&user=${encodeURIComponent(user)}&pass=${encodeURIComponent(pass)}`;
                     startConnection(query);
                 });
