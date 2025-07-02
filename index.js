@@ -12,17 +12,33 @@ if (!host || !username || !password) {
 const conn = new Client();
 conn.on('ready', () => {
     console.log('SSH connection established. Opening shell...');
-    conn.shell((err, stream) => {
+    
+    // Get current terminal size
+    const { columns, rows } = process.stdout;
+    
+    conn.shell({
+        cols: columns || 80,
+        rows: rows || 24,
+        term: process.env.TERM || 'xterm-256color'
+    }, (err, stream) => {
         if (err) {
             console.error('Shell error:', err);
             conn.end();
             return;
         }
+        
         process.stdin.setRawMode(true);
         process.stdin.resume();
         process.stdin.pipe(stream);
         stream.pipe(process.stdout);
         stream.stderr.pipe(process.stderr);
+        
+        // Handle terminal resize events
+        process.stdout.on('resize', () => {
+            const { columns, rows } = process.stdout;
+            stream.setWindow(rows, columns);
+        });
+        
         stream.on('close', () => {
             process.stdin.setRawMode(false);
             process.stdin.pause();
