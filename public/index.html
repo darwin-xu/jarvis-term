@@ -194,6 +194,10 @@
             let bufferIndex = 0;
             const PING_INTERVAL = 15000;
 
+            function log(...args) {
+                console.log(new Date().toISOString(), ...args);
+            }
+
             function showConnectForm() {
                 document.getElementById('connect-form').style.display = 'flex';
             }
@@ -304,9 +308,7 @@
                 if (term && fitAddon) {
                     try {
                         fitAddon.fit();
-                        console.log(
-                            `Terminal resized to: ${term.cols}x${term.rows}`
-                        );
+                        log(`Terminal resized to: ${term.cols}x${term.rows}`);
 
                         // Send resize info to server if connected
                         if (
@@ -364,7 +366,7 @@
                         // Check if container has proper dimensions
                         const container =
                             document.getElementById('terminal-container');
-                        console.log(
+                        log(
                             `Container dimensions: ${container.offsetWidth}x${container.offsetHeight}`
                         );
 
@@ -506,7 +508,7 @@
                 socket.onclose = event => {
                     isConnected = false;
                     clearInterval(pingTimer);
-                    console.log('WebSocket closed', event);
+                    log('WebSocket closed', event);
                     if (event.wasClean) {
                         updateStatus('Connection closed', true);
                     } else {
@@ -524,7 +526,7 @@
                 socket.onerror = () => {
                     isConnected = false;
                     clearInterval(pingTimer);
-                    console.log('WebSocket error');
+                    log('WebSocket error');
                     updateStatus('Connection failed', true);
                     if (!manualClose) {
                         scheduleReconnect();

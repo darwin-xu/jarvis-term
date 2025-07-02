@@ -19,6 +19,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const sessions = new Map();
 
+function log(...args) {
+    console.log(new Date().toISOString(), ...args);
+}
+
 function cleanupSessions() {
     const now = Date.now();
     for (const [id, session] of sessions) {
@@ -85,49 +89,55 @@ function attachToSession(ws, session, offset = 0) {
         }
     };
 
-    const onData = data => {
-        const text = data.toString('utf8');
-        session.buffer.push(text);
-        if (session.buffer.length > 2000) {
-            session.buffer.shift();
-            if (ws.sentIndex > 0) {
-                ws.sentIndex--;
+    if (!session.onData) {
+        session.onData = data => {
+            const text = data.toString('utf8');
+            session.buffer.push(text);
+            if (session.buffer.length > 2000) {
+                session.buffer.shift();
+                if (session.ws && session.ws.sentIndex > 0) {
+                    session.ws.sentIndex--;
+                }
             }
-        }
-        session.lastActive = Date.now();
-        if (ws.readyState === ws.OPEN) {
-            ws.send(text);
-        }
-        ws.sentIndex = session.buffer.length;
-    };
+            session.lastActive = Date.now();
+            if (session.ws && session.ws.readyState === session.ws.OPEN) {
+                session.ws.send(text);
+                session.ws.sentIndex = session.buffer.length;
+            }
+        };
+        session.stream.on('data', session.onData);
+        session.stream.stderr.on('data', session.onData);
+    }
 
-    session.stream.on('data', onData);
-    session.stream.stderr.on('data', onData);
+    session.ws = ws;
 
     let closed = false;
     function handleSshClose() {
         if (closed) return;
         closed = true;
-        console.log(`SSH session ${session.id} closed`);
+        log(`SSH session ${session.id} closed`);
         clearInterval(pingInterval);
         session.lastActive = Date.now();
         sessions.delete(session.id);
-        if (ws.readyState === ws.OPEN) {
-            ws.send(
+        if (session.ws && session.ws.readyState === session.ws.OPEN) {
+            session.ws.send(
                 JSON.stringify({
                     type: 'error',
                     message: 'SSH session closed',
                 })
             );
-            ws.close();
+            session.ws.close();
         }
     }
 
-    session.stream.on('close', handleSshClose);
-    session.stream.on('exit', handleSshClose);
-    session.stream.on('end', handleSshClose);
-    session.conn.on('close', handleSshClose);
-    session.conn.on('end', handleSshClose);
+    if (!session.sshListenersAdded) {
+        session.stream.on('close', handleSshClose);
+        session.stream.on('exit', handleSshClose);
+        session.stream.on('end', handleSshClose);
+        session.conn.on('close', handleSshClose);
+        session.conn.on('end', handleSshClose);
+        session.sshListenersAdded = true;
+    }
 
     ws.isAlive = true;
 
@@ -138,9 +148,7 @@ function attachToSession(ws, session, offset = 0) {
         }
         if (!ws.isAlive) {
             clearInterval(pingInterval);
-            console.log(
-                `Terminating stale WebSocket for session ${session.id}`
-            );
+            log(`Terminating stale WebSocket for session ${session.id}`);
             ws.terminate();
             return;
         }
@@ -176,27 +184,15 @@ function attachToSession(ws, session, offset = 0) {
     });
 
     ws.on('close', () => {
-        console.log(`WebSocket for session ${session.id} closed`);
-        session.stream.removeListener('data', onData);
-        session.stream.stderr.removeListener('data', onData);
-        session.stream.removeListener('close', handleSshClose);
-        session.stream.removeListener('exit', handleSshClose);
-        session.stream.removeListener('end', handleSshClose);
-        session.conn.removeListener('close', handleSshClose);
-        session.conn.removeListener('end', handleSshClose);
+        log(`WebSocket for session ${session.id} closed`);
+        session.ws = null;
         session.lastActive = Date.now();
         clearInterval(pingInterval);
     });
 
     ws.on('error', err => {
-        console.log(`WebSocket error for session ${session.id}:`, err);
-        session.stream.removeListener('data', onData);
-        session.stream.stderr.removeListener('data', onData);
-        session.stream.removeListener('close', handleSshClose);
-        session.stream.removeListener('exit', handleSshClose);
-        session.stream.removeListener('end', handleSshClose);
-        session.conn.removeListener('close', handleSshClose);
-        session.conn.removeListener('end', handleSshClose);
+        log(`WebSocket error for session ${session.id}:`, err);
+        session.ws = null;
         session.lastActive = Date.now();
         clearInterval(pingInterval);
     });
@@ -266,7 +262,7 @@ app.ws('/terminal', (ws, req) => {
     sessions.set(id, session);
 
     conn.on('ready', () => {
-        console.log(`SSH connection ready for session ${id}`);
+        log(`SSH connection ready for session ${id}`);
         conn.shell(
             {
                 term: 'xterm-256color',
@@ -292,7 +288,7 @@ app.ws('/terminal', (ws, req) => {
         );
     })
         .on('error', err => {
-            console.log(`SSH connection error for session ${id}:`, err);
+            log(`SSH connection error for session ${id}:`, err);
             ws.send(
                 JSON.stringify({
                     type: 'error',
@@ -313,5 +309,5 @@ app.ws('/terminal', (ws, req) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`Web terminal server running at http://localhost:${PORT}`);
+    log(`Web terminal server running at http://localhost:${PORT}`);
 });
