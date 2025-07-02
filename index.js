@@ -96,6 +96,31 @@ function attachToSession(ws, session) {
     session.stream.on('data', onData);
     session.stream.stderr.on('data', onData);
 
+    ws.isAlive = true;
+    ws.on('pong', () => {
+        ws.isAlive = true;
+        session.lastActive = Date.now();
+    });
+
+    const pingInterval = setInterval(() => {
+        if (ws.readyState !== ws.OPEN) {
+            clearInterval(pingInterval);
+            return;
+        }
+        if (!ws.isAlive) {
+            clearInterval(pingInterval);
+            ws.terminate();
+            return;
+        }
+        ws.isAlive = false;
+        try {
+            ws.ping();
+            session.lastActive = Date.now();
+        } catch {
+            // ignore errors during ping
+        }
+    }, 30000);
+
     ws.on('message', msg => {
         try {
             const data = JSON.parse(msg);
@@ -117,12 +142,14 @@ function attachToSession(ws, session) {
         session.stream.removeListener('data', onData);
         session.stream.stderr.removeListener('data', onData);
         session.lastActive = Date.now();
+        clearInterval(pingInterval);
     });
 
     ws.on('error', () => {
         session.stream.removeListener('data', onData);
         session.stream.stderr.removeListener('data', onData);
         session.lastActive = Date.now();
+        clearInterval(pingInterval);
     });
 
     ws.send(
