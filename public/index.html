@@ -1162,6 +1162,7 @@
             let isExecutingCommand = false;
             let commandOutputBuffer = '';
             let commandStartTime = null;
+            let currentExecutingCommand = null; // Track currently executing command
 
             // Config modal functions
             function openConfigModal() {
@@ -1318,6 +1319,7 @@
                 isExecutingCommand = true;
                 commandOutputBuffer = '';
                 commandStartTime = Date.now();
+                currentExecutingCommand = command; // Track the current command
 
                 // Add command to AI chat
                 addAIMessage(`🔧 Executing: ${command}`, false, 'command');
@@ -1331,15 +1333,30 @@
                 // Set a timeout to stop capturing output after 10 seconds
                 setTimeout(() => {
                     if (isExecutingCommand) {
-                        finishCommandExecution(command, true);
+                        finishCommandExecution(
+                            currentExecutingCommand || command,
+                            true
+                        );
                     }
                 }, 10000);
             }
 
             function finishCommandExecution(command, isTimeout = false) {
-                if (!isExecutingCommand) return;
+                if (!isExecutingCommand) {
+                    console.log(
+                        'finishCommandExecution called but no command is executing'
+                    );
+                    return;
+                }
+
+                console.log('Finishing command execution', {
+                    command,
+                    isTimeout,
+                    executionTime: Date.now() - commandStartTime,
+                });
 
                 isExecutingCommand = false;
+                currentExecutingCommand = null; // Clear the tracked command
                 const executionTime = Date.now() - commandStartTime;
 
                 // Clean up the output buffer
@@ -1413,38 +1430,97 @@
                 if (isExecutingCommand) {
                     commandOutputBuffer += data;
 
-                    // Check if command has finished (look for prompt patterns)
-                    // This is a simple heuristic - you might need to adjust based on your shell
-                    if (
-                        data.includes('$ ') ||
-                        data.includes('# ') ||
-                        data.includes('> ') ||
-                        data.includes('bash-') ||
-                        data.includes(': ~') ||
-                        data.includes(']:')
-                    ) {
+                    // Enhanced prompt detection - look for common shell prompt patterns
+                    // Match patterns that typically indicate end of command execution
+                    const promptPatterns = [
+                        /\$ $/m, // Standard shell prompt ending with $
+                        /# $/m, // Root shell prompt ending with #
+                        /> $/m, // Some shell prompts ending with >
+                        /\] $/m, // Prompts ending with ]
+                        /% $/m, // Zsh default prompt ending with %
+                        /➜ /m, // Oh-my-zsh arrow prompt
+                        /❯ /m, // Some modern shell prompts
+                        /\$\s*$/m, // $ followed by optional whitespace at end
+                        /#\s*$/m, // # followed by optional whitespace at end
+                        /bash-[\d\.]+-\$ $/m, // bash version prompts
+                        /zsh-[\d\.]+-% $/m, // zsh version prompts
+                    ];
+
+                    // Check for prompt patterns
+                    const hasPrompt = promptPatterns.some(pattern =>
+                        pattern.test(data)
+                    );
+
+                    if (hasPrompt) {
                         console.log(
-                            'Command prompt detected, finishing execution...'
+                            'Command prompt detected, finishing execution...',
+                            {
+                                command: currentExecutingCommand,
+                                elapsed: Date.now() - commandStartTime,
+                                dataSnippet: data.slice(-50), // Show last 50 chars
+                            }
                         );
-                        // Delay a bit to ensure we capture the full output
+
+                        // Shorter delay and remove arbitrary time requirement
                         setTimeout(() => {
                             if (isExecutingCommand) {
-                                // Get the last command from history
-                                const lastLog =
-                                    commandOutputLog[
-                                        commandOutputLog.length - 1
-                                    ];
-                                if (
-                                    lastLog &&
-                                    Date.now() - commandStartTime > 500
-                                ) {
-                                    // At least 500ms since start
-                                    finishCommandExecution(
-                                        lastLog.command || 'unknown'
-                                    );
+                                // Use the tracked command, or try to extract from buffer
+                                let currentCommand =
+                                    currentExecutingCommand || 'unknown';
+
+                                // If we don't have a tracked command, try to extract from buffer
+                                if (!currentExecutingCommand) {
+                                    const lines =
+                                        commandOutputBuffer.split('\n');
+                                    for (let i = 0; i < lines.length; i++) {
+                                        const line = lines[i].trim();
+                                        if (
+                                            line &&
+                                            !line.match(/^\s*[\$#%➜❯>]/)
+                                        ) {
+                                            // Skip prompt lines, take first non-prompt line as potential command
+                                            const commandMatch =
+                                                line.match(/^\s*([^\s]+)/);
+                                            if (commandMatch) {
+                                                currentCommand =
+                                                    commandMatch[1];
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Ensure minimum execution time of 100ms to avoid false positives
+                                const minExecutionTime = 100;
+                                const elapsed = Date.now() - commandStartTime;
+
+                                console.log(
+                                    'About to finish command execution',
+                                    {
+                                        command: currentCommand,
+                                        elapsed,
+                                        minExecutionTime,
+                                        willDelay: elapsed < minExecutionTime,
+                                    }
+                                );
+
+                                if (elapsed >= minExecutionTime) {
+                                    finishCommandExecution(currentCommand);
+                                } else {
+                                    // Wait a bit more if command executed too quickly
+                                    setTimeout(() => {
+                                        if (isExecutingCommand) {
+                                            console.log(
+                                                'Finishing command after delay'
+                                            );
+                                            finishCommandExecution(
+                                                currentCommand
+                                            );
+                                        }
+                                    }, minExecutionTime - elapsed);
                                 }
                             }
-                        }, 200);
+                        }, 100); // Reduced delay from 200ms to 100ms
                     }
                 }
             }
