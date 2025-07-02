@@ -1652,7 +1652,7 @@ Example: /cmd ls -la`;
 
             // Handle Cmd+I keyboard shortcut
             document.addEventListener('keydown', e => {
-                if (e.metaKey && e.key === 'i') {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
                     e.preventDefault();
                     toggleAIAssistant();
                 }
