@@ -32,6 +32,7 @@ function cleanupSessions() {
             }
             session.conn.end();
             sessions.delete(id);
+            log(`Session ${id} timed out and was removed`);
         }
     }
 }
@@ -110,12 +111,17 @@ function attachToSession(ws, session, offset = 0) {
     }
 
     session.ws = ws;
+    log(
+        `WebSocket attached to session ${session.id} from ${ws._socket.remoteAddress}:${ws._socket.remotePort}`
+    );
 
     let closed = false;
-    function handleSshClose() {
+    function handleSshClose(reason) {
         if (closed) return;
         closed = true;
-        log(`SSH session ${session.id} closed`);
+        log(
+            `SSH session ${session.id} closed (${reason}) for ${session.username}@${session.host}:${session.port}`
+        );
         clearInterval(pingInterval);
         session.lastActive = Date.now();
         sessions.delete(session.id);
@@ -131,11 +137,19 @@ function attachToSession(ws, session, offset = 0) {
     }
 
     if (!session.sshListenersAdded) {
-        session.stream.on('close', handleSshClose);
-        session.stream.on('exit', handleSshClose);
-        session.stream.on('end', handleSshClose);
-        session.conn.on('close', handleSshClose);
-        session.conn.on('end', handleSshClose);
+        session.stream.on('close', () => handleSshClose('stream close'));
+        session.stream.on('exit', code =>
+            handleSshClose(`stream exit ${code}`)
+        );
+        session.stream.on('end', () => handleSshClose('stream end'));
+        session.stream.on('error', err =>
+            log(`SSH stream error for session ${session.id}:`, err)
+        );
+        session.conn.on('close', () => handleSshClose('conn close'));
+        session.conn.on('end', () => handleSshClose('conn end'));
+        session.conn.on('error', err =>
+            log(`SSH connection error for session ${session.id}:`, err)
+        );
         session.sshListenersAdded = true;
     }
 
@@ -154,6 +168,7 @@ function attachToSession(ws, session, offset = 0) {
         }
         ws.isAlive = false;
         try {
+            log(`Ping WebSocket for session ${session.id}`);
             ws.send(JSON.stringify({ type: 'ping' }));
             session.lastActive = Date.now();
         } catch {
@@ -167,7 +182,9 @@ function attachToSession(ws, session, offset = 0) {
             if (data.type === 'pong') {
                 ws.isAlive = true;
                 session.lastActive = Date.now();
+                log(`Received pong for session ${session.id}`);
             } else if (data.type === 'ping') {
+                log(`Received ping from client for session ${session.id}`);
                 ws.send(JSON.stringify({ type: 'pong' }));
             } else if (data.type === 'resize') {
                 session.cols = data.cols || 80;
@@ -183,15 +200,20 @@ function attachToSession(ws, session, offset = 0) {
         }
     });
 
-    ws.on('close', () => {
-        log(`WebSocket for session ${session.id} closed`);
+    ws.on('close', (code, reason) => {
+        log(
+            `WebSocket for session ${session.id} closed code=${code} reason=${reason.toString()}`
+        );
         session.ws = null;
         session.lastActive = Date.now();
         clearInterval(pingInterval);
     });
 
     ws.on('error', err => {
-        log(`WebSocket error for session ${session.id}:`, err);
+        log(
+            `WebSocket error for session ${session.id} from ${ws._socket.remoteAddress}:${ws._socket.remotePort}:`,
+            err
+        );
         session.ws = null;
         session.lastActive = Date.now();
         clearInterval(pingInterval);
@@ -213,6 +235,9 @@ app.ws('/terminal', (ws, req) => {
     if (sessionId) {
         if (sessions.has(sessionId)) {
             const session = sessions.get(sessionId);
+            log(
+                `WebSocket reconnect from ${req.socket.remoteAddress}:${req.socket.remotePort} for session ${sessionId}`
+            );
             attachToSession(ws, session, offset);
             return;
         } else {
@@ -236,6 +261,11 @@ app.ws('/terminal', (ws, req) => {
     const host = req.query.host || process.env.SSH_HOST;
     const username = req.query.user || process.env.SSH_USER;
     const password = req.query.pass || process.env.SSH_PASS;
+    const port = parseInt(req.query.port, 10) || 22;
+
+    log(
+        `WebSocket connection from ${req.socket.remoteAddress}:${req.socket.remotePort} to SSH ${username}@${host}:${port}`
+    );
 
     if (!host || !username || !password) {
         ws.send(
@@ -258,11 +288,17 @@ app.ws('/terminal', (ws, req) => {
         cols: 80,
         rows: 24,
         lastActive: Date.now(),
+        host,
+        port,
+        username,
     };
     sessions.set(id, session);
+    log(`Created SSH session ${id} for ${username}@${host}:${port}`);
 
     conn.on('ready', () => {
-        log(`SSH connection ready for session ${id}`);
+        log(
+            `SSH connection ready for session ${id} to ${username}@${host}:${port}`
+        );
         conn.shell(
             {
                 term: 'xterm-256color',
@@ -288,7 +324,10 @@ app.ws('/terminal', (ws, req) => {
         );
     })
         .on('error', err => {
-            log(`SSH connection error for session ${id}:`, err);
+            log(
+                `SSH connection error for session ${id} to ${username}@${host}:${port}:`,
+                err
+            );
             ws.send(
                 JSON.stringify({
                     type: 'error',
@@ -300,6 +339,7 @@ app.ws('/terminal', (ws, req) => {
         })
         .connect({
             host,
+            port,
             username,
             password,
             keepaliveInterval: 30000,
