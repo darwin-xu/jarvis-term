@@ -96,6 +96,30 @@ function attachToSession(ws, session) {
     session.stream.on('data', onData);
     session.stream.stderr.on('data', onData);
 
+    let closed = false;
+    function handleSshClose() {
+        if (closed) return;
+        closed = true;
+        clearInterval(pingInterval);
+        session.lastActive = Date.now();
+        sessions.delete(session.id);
+        if (ws.readyState === ws.OPEN) {
+            ws.send(
+                JSON.stringify({
+                    type: 'error',
+                    message: 'SSH session closed',
+                })
+            );
+            ws.close();
+        }
+    }
+
+    session.stream.on('close', handleSshClose);
+    session.stream.on('exit', handleSshClose);
+    session.stream.on('end', handleSshClose);
+    session.conn.on('close', handleSshClose);
+    session.conn.on('end', handleSshClose);
+
     ws.isAlive = true;
     ws.on('pong', () => {
         ws.isAlive = true;
@@ -141,6 +165,11 @@ function attachToSession(ws, session) {
     ws.on('close', () => {
         session.stream.removeListener('data', onData);
         session.stream.stderr.removeListener('data', onData);
+        session.stream.removeListener('close', handleSshClose);
+        session.stream.removeListener('exit', handleSshClose);
+        session.stream.removeListener('end', handleSshClose);
+        session.conn.removeListener('close', handleSshClose);
+        session.conn.removeListener('end', handleSshClose);
         session.lastActive = Date.now();
         clearInterval(pingInterval);
     });
@@ -148,6 +177,11 @@ function attachToSession(ws, session) {
     ws.on('error', () => {
         session.stream.removeListener('data', onData);
         session.stream.stderr.removeListener('data', onData);
+        session.stream.removeListener('close', handleSshClose);
+        session.stream.removeListener('exit', handleSshClose);
+        session.stream.removeListener('end', handleSshClose);
+        session.conn.removeListener('close', handleSshClose);
+        session.conn.removeListener('end', handleSshClose);
         session.lastActive = Date.now();
         clearInterval(pingInterval);
     });
@@ -255,6 +289,7 @@ app.ws('/terminal', (ws, req) => {
             username,
             password,
             keepaliveInterval: 30000,
+            keepaliveCountMax: 10,
             readyTimeout: 20000,
         });
 });
