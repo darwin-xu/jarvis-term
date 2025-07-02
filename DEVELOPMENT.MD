@@ -5,11 +5,13 @@ This document outlines the strategic refactoring plan for transforming the curre
 ## 🔍 Current Architecture Analysis
 
 ### Strengths
+
 - ✅ **Simple and working** - Easy to understand and debug
-- ✅ **Minimal dependencies** - Fast startup and deployment  
+- ✅ **Minimal dependencies** - Fast startup and deployment
 - ✅ **Self-contained** - Everything needed is in 2 files
 
 ### Extensibility Limitations
+
 - 🚫 **Monolithic structure** - Hard to add new features without touching core code
 - 🚫 **No separation of concerns** - SSH, WebSocket, and terminal logic mixed together
 - 🚫 **Single terminal limitation** - Can't easily support multiple terminals/sessions
@@ -28,6 +30,7 @@ This document outlines the strategic refactoring plan for transforming the curre
 ### Goal: Make current code more maintainable without over-engineering
 
 #### Week 1: Quick Developer Experience Wins
+
 - [ ] Add TypeScript (gradual adoption, start with `// @ts-check`)
 - [ ] Add ESLint + Prettier for code consistency
 - [ ] Split `index.js` into just 2-3 logical files (not a full architecture)
@@ -35,6 +38,7 @@ This document outlines the strategic refactoring plan for transforming the curre
 - [ ] Create simple `package.json` scripts for development
 
 #### Suggested Simple Split:
+
 ```
 ├── server.js           // Express setup + basic routing
 ├── terminal.js         // WebSocket + SSH logic (current functionality)
@@ -42,6 +46,7 @@ This document outlines the strategic refactoring plan for transforming the curre
 ```
 
 ### Goals
+
 - **Maintainable**: Easier to work with current code
 - **No over-engineering**: Keep it simple until we know what we need
 - **Quick wins**: Better developer experience immediately
@@ -50,16 +55,19 @@ This document outlines the strategic refactoring plan for transforming the curre
 ## 📋 Phase 2: User-Driven Feature Development
 
 ### Focus on User Experience & Feedback
+
 - Add one small AI feature at a time based on actual usage
-- Improve frontend UX based on real user pain points  
+- Improve frontend UX based on real user pain points
 - Let backend complexity emerge from feature requirements
 
 ### Potential First AI Feature (Pick One):
+
 - **Command history with AI search**: "Show me that docker command I ran last week"
 - **Smart command suggestions**: Based on current directory context
 - **Session summarization**: "What did I accomplish in this session?"
 
 ### Architecture Decision: Wait and See
+
 - Don't build complex plugin systems until you have 2-3 plugins to design for
 - Don't build complex AI pipelines until you know what processing you need
 - Don't optimize for scale until you have scale problems
@@ -67,12 +75,14 @@ This document outlines the strategic refactoring plan for transforming the curre
 ## 📋 Phase 2: Frontend Framework (Medium Priority)
 
 ### Recommended Stack
+
 - **React + TypeScript + Vite** - Component-based, fast development
 - **Zustand** - Simple state management for terminal sessions
 - **React Query** - For AI API calls
 - **Tailwind CSS** - Faster UI development
 
 ### Target Component Structure
+
 ```typescript
 components/
 ├── Terminal/
@@ -92,6 +102,7 @@ components/
 ```
 
 ### Goals
+
 - Component-based architecture for reusability
 - Multiple terminal session support
 - Prepared UI for AI features
@@ -100,18 +111,21 @@ components/
 ## 🛠️ Technology Stack Recommendations
 
 ### Backend
+
 - **NestJS + TypeScript** - Modular architecture with dependency injection
 - **Socket.io** - Advanced WebSocket management with rooms
 - **Bull Queue** - Background job processing for AI tasks
 - **Prisma** - Database ORM for user sessions and connections (future)
 
 ### Frontend
+
 - **React + TypeScript + Vite** - Modern component-based development
 - **Zustand** - Lightweight state management
 - **React Query** - Server state management and caching
 - **Tailwind CSS** - Utility-first CSS framework
 
 ### AI Integration
+
 - **OpenAI SDK** - For AI completion and analysis features
 - **LangChain.js** - Complex AI workflow orchestration
 - **Model Context Protocol (MCP)** - Aligns with project vision
@@ -119,6 +133,7 @@ components/
 ## 📅 Revised Migration Timeline (Lean Approach)
 
 ### Week 1: Developer Experience (No Architecture Changes)
+
 - [ ] Add TypeScript checking with `// @ts-check` comments
 - [ ] Set up ESLint + Prettier
 - [ ] Split `index.js` into 2-3 simple files
@@ -126,17 +141,20 @@ components/
 - [ ] Create development scripts
 
 ### Week 2: Pick One Small AI Feature
+
 - [ ] Choose based on your actual usage: command history, suggestions, or summarization
 - [ ] Add minimal API endpoint for that feature
 - [ ] Implement simplest possible version
 - [ ] Get user feedback
 
 ### Week 3+: Iterate Based on Real Needs
+
 - [ ] Add features based on actual pain points
 - [ ] Refactor only when you hit real complexity problems
 - [ ] Let architecture emerge from requirements
 
 ### Backend Architecture: Evolve Don't Plan
+
 - **Current**: Keep the simple Express + WebSocket approach
 - **When you add AI**: Add simple `/api/ai` endpoint alongside existing `/terminal`
 - **When you need complexity**: Refactor the parts that actually became complex
@@ -145,12 +163,14 @@ components/
 ## 🔄 Migration Options
 
 ### Option A: Gradual Migration (Recommended)
+
 - Refactor backend first while keeping current functionality
 - Build React frontend alongside existing HTML
 - Migrate features one by one
 - Maintain backward compatibility throughout
 
 ### Option B: Minimal Changes
+
 - Extract core logic into classes without framework changes
 - Add AI features as separate modules
 - Enhance frontend with vanilla JavaScript modules
@@ -167,18 +187,21 @@ components/
 ## 🧪 Development Principles
 
 ### Code Quality
+
 - **TypeScript** for type safety
 - **ESLint + Prettier** for code consistency
 - **Jest** for unit testing
 - **Modular architecture** for maintainability
 
 ### AI Integration Readiness
+
 - **Event-driven architecture** for AI processing hooks
 - **Async/queue system** for AI operations
 - **Plugin interfaces** for extending AI capabilities
 - **Context preservation** for AI session understanding
 
 ### User Experience
+
 - **Progressive enhancement** - maintain current UX while adding features
 - **Performance optimization** - fast terminal response times
 - **Mobile responsiveness** - work well on all devices
@@ -187,16 +210,19 @@ components/
 ## 📚 Learning Resources
 
 ### Architecture Patterns
+
 - [NestJS Documentation](https://nestjs.com/)
 - [Clean Architecture in Node.js](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
 - [Plugin Architecture Patterns](https://martinfowler.com/articles/plugins.html)
 
 ### AI Integration
+
 - [OpenAI API Best Practices](https://platform.openai.com/docs/guides/best-practices)
 - [LangChain.js Documentation](https://js.langchain.com/)
 - [Model Context Protocol](https://modelcontextprotocol.io/)
 
 ### Frontend Development
+
 - [React + TypeScript Best Practices](https://react-typescript-cheatsheet.netlify.app/)
 - [Zustand State Management](https://zustand-demo.pmnd.rs/)
 - [React Query Documentation](https://tanstack.com/query/latest)
@@ -204,18 +230,21 @@ components/
 ## 🎯 Success Metrics
 
 ### Phase 1 Success
+
 - [ ] Backend modules are independently testable
 - [ ] Current functionality remains unchanged
 - [ ] Code is easier to understand and modify
 - [ ] New connector types can be added easily
 
 ### Phase 2 Success
+
 - [ ] Frontend is component-based and reusable
 - [ ] Multiple terminal sessions work smoothly
 - [ ] UI is responsive and accessible
 - [ ] State management is predictable
 
 ### Overall Success
+
 - [ ] AI features integrate seamlessly
 - [ ] Plugin system allows easy extensions
 - [ ] Performance is maintained or improved
