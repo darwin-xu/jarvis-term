@@ -77,6 +77,13 @@
                 font-weight: 600;
             }
 
+            .ai-assistant-header .header-buttons {
+                display: flex;
+                gap: 4px;
+                align-items: center;
+            }
+
+            .ai-assistant-header .config-btn,
             .ai-assistant-header .close-btn {
                 background: none;
                 border: none;
@@ -86,8 +93,14 @@
                 border-radius: 2px;
                 font-size: 16px;
                 line-height: 1;
+                width: 24px;
+                height: 24px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
             }
 
+            .ai-assistant-header .config-btn:hover,
             .ai-assistant-header .close-btn:hover {
                 background-color: #404040;
             }
@@ -195,6 +208,167 @@
 
             .ai-toggle-hint.show {
                 opacity: 1;
+            }
+
+            .config-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.7);
+                display: none;
+                align-items: center;
+                justify-content: center;
+                z-index: 2000;
+            }
+
+            .config-modal {
+                background-color: #2d2d2d;
+                border: 1px solid #404040;
+                border-radius: 8px;
+                width: 90%;
+                max-width: 500px;
+                max-height: 80vh;
+                overflow-y: auto;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            }
+
+            .config-header {
+                padding: 16px 20px;
+                background-color: #363636;
+                border-bottom: 1px solid #404040;
+                border-radius: 8px 8px 0 0;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                font-size: 16px;
+                font-weight: 600;
+            }
+
+            .config-content {
+                padding: 20px;
+            }
+
+            .config-section {
+                margin-bottom: 24px;
+            }
+
+            .config-section:last-child {
+                margin-bottom: 0;
+            }
+
+            .config-label {
+                display: block;
+                font-size: 14px;
+                font-weight: 500;
+                color: #ffffff;
+                margin-bottom: 8px;
+            }
+
+            .llm-options {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .llm-option {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px;
+                border: 1px solid #404040;
+                border-radius: 4px;
+                cursor: pointer;
+                transition: background-color 0.2s;
+            }
+
+            .llm-option:hover {
+                background-color: #3c3c3c;
+            }
+
+            .llm-option.selected {
+                border-color: #007acc;
+                background-color: rgba(0, 122, 204, 0.1);
+            }
+
+            .llm-option input[type="radio"] {
+                margin: 0;
+            }
+
+            .llm-option-info {
+                flex: 1;
+            }
+
+            .llm-option-name {
+                font-size: 14px;
+                font-weight: 500;
+                color: #ffffff;
+            }
+
+            .llm-option-desc {
+                font-size: 12px;
+                color: #cccccc;
+                margin-top: 2px;
+            }
+
+            .custom-url-input {
+                width: 100%;
+                padding: 8px 12px;
+                border: 1px solid #404040;
+                border-radius: 4px;
+                background-color: #3c3c3c;
+                color: #ffffff;
+                font-size: 14px;
+                margin-top: 8px;
+            }
+
+            .custom-url-input:focus {
+                outline: none;
+                border-color: #007acc;
+                box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.3);
+            }
+
+            .custom-url-input:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+
+            .config-buttons {
+                display: flex;
+                gap: 8px;
+                justify-content: flex-end;
+                margin-top: 20px;
+                padding-top: 16px;
+                border-top: 1px solid #404040;
+            }
+
+            .config-btn-primary,
+            .config-btn-secondary {
+                padding: 8px 16px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+                transition: background-color 0.2s;
+            }
+
+            .config-btn-primary {
+                background-color: #007acc;
+                color: white;
+            }
+
+            .config-btn-primary:hover {
+                background-color: #005a9e;
+            }
+
+            .config-btn-secondary {
+                background-color: #404040;
+                color: #ffffff;
+            }
+
+            .config-btn-secondary:hover {
+                background-color: #4a4a4a;
             }
 
             #connect-form {
@@ -360,7 +534,10 @@
                 <div class="ai-assistant-pane" id="ai-assistant-pane">
                     <div class="ai-assistant-header">
                         <span>AI Assistant</span>
-                        <button class="close-btn" onclick="toggleAIAssistant()">×</button>
+                        <div class="header-buttons">
+                            <button class="config-btn" onclick="openConfigModal()" title="Configuration">⚙</button>
+                            <button class="close-btn" onclick="toggleAIAssistant()" title="Close">×</button>
+                        </div>
                     </div>
                     <div class="ai-chat-container">
                         <div class="ai-chat-messages" id="ai-chat-messages">
@@ -381,6 +558,55 @@
                 </div>
             </div>
             <div class="ai-toggle-hint" id="ai-toggle-hint">Press Cmd+I to toggle AI Assistant</div>
+            
+            <!-- Config Modal -->
+            <div class="config-overlay" id="config-overlay">
+                <div class="config-modal">
+                    <div class="config-header">
+                        <span>AI Assistant Configuration</span>
+                        <button class="close-btn" onclick="closeConfigModal()">×</button>
+                    </div>
+                    <div class="config-content">
+                        <div class="config-section">
+                            <label class="config-label">Choose LLM Provider:</label>
+                            <div class="llm-options">
+                                <label class="llm-option" onclick="selectLLMProvider('openai')">
+                                    <input type="radio" name="llm-provider" value="openai" />
+                                    <div class="llm-option-info">
+                                        <div class="llm-option-name">OpenAI</div>
+                                        <div class="llm-option-desc">GPT models from OpenAI</div>
+                                    </div>
+                                </label>
+                                <label class="llm-option" onclick="selectLLMProvider('openrouter')">
+                                    <input type="radio" name="llm-provider" value="openrouter" />
+                                    <div class="llm-option-info">
+                                        <div class="llm-option-name">OpenRouter</div>
+                                        <div class="llm-option-desc">Access to multiple LLM providers</div>
+                                    </div>
+                                </label>
+                                <label class="llm-option" onclick="selectLLMProvider('custom')">
+                                    <input type="radio" name="llm-provider" value="custom" />
+                                    <div class="llm-option-info">
+                                        <div class="llm-option-name">Custom</div>
+                                        <div class="llm-option-desc">Your own API endpoint</div>
+                                    </div>
+                                </label>
+                            </div>
+                            <input 
+                                type="text" 
+                                class="custom-url-input" 
+                                id="custom-url-input"
+                                placeholder="Enter custom API URL..."
+                                disabled
+                            />
+                        </div>
+                        <div class="config-buttons">
+                            <button class="config-btn-secondary" onclick="closeConfigModal()">Cancel</button>
+                            <button class="config-btn-primary" onclick="saveConfig()">Save</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
@@ -823,6 +1049,112 @@
             // AI Assistant functionality
             let aiAssistantOpen = false;
             let aiMessages = [];
+            let currentLLMProvider = 'openai'; // default
+            let customApiUrl = '';
+
+            // Config modal functions
+            function openConfigModal() {
+                const overlay = document.getElementById('config-overlay');
+                overlay.style.display = 'flex';
+                
+                // Load current settings
+                loadConfigSettings();
+            }
+
+            function closeConfigModal() {
+                const overlay = document.getElementById('config-overlay');
+                overlay.style.display = 'none';
+            }
+
+            function loadConfigSettings() {
+                // Load from localStorage
+                const savedProvider = localStorage.getItem('llm-provider') || 'openai';
+                const savedCustomUrl = localStorage.getItem('custom-api-url') || '';
+                
+                currentLLMProvider = savedProvider;
+                customApiUrl = savedCustomUrl;
+                
+                // Update UI
+                const radioButton = document.querySelector(`input[name="llm-provider"][value="${savedProvider}"]`);
+                if (radioButton) {
+                    radioButton.checked = true;
+                    updateLLMOptionSelection(savedProvider);
+                }
+                
+                const customUrlInput = document.getElementById('custom-url-input');
+                customUrlInput.value = savedCustomUrl;
+                customUrlInput.disabled = savedProvider !== 'custom';
+            }
+
+            function selectLLMProvider(provider) {
+                const radioButton = document.querySelector(`input[name="llm-provider"][value="${provider}"]`);
+                if (radioButton) {
+                    radioButton.checked = true;
+                }
+                
+                updateLLMOptionSelection(provider);
+                currentLLMProvider = provider;
+            }
+
+            function updateLLMOptionSelection(provider) {
+                // Remove selected class from all options
+                document.querySelectorAll('.llm-option').forEach(option => {
+                    option.classList.remove('selected');
+                });
+                
+                // Add selected class to current option
+                const selectedOption = document.querySelector(`input[name="llm-provider"][value="${provider}"]`).closest('.llm-option');
+                if (selectedOption) {
+                    selectedOption.classList.add('selected');
+                }
+                
+                // Enable/disable custom URL input
+                const customUrlInput = document.getElementById('custom-url-input');
+                customUrlInput.disabled = provider !== 'custom';
+                
+                if (provider === 'custom') {
+                    customUrlInput.focus();
+                }
+            }
+
+            function saveConfig() {
+                const selectedProvider = document.querySelector('input[name="llm-provider"]:checked')?.value || 'openai';
+                const customUrl = document.getElementById('custom-url-input').value.trim();
+                
+                // Validate custom URL if selected
+                if (selectedProvider === 'custom' && !customUrl) {
+                    alert('Please enter a custom API URL');
+                    return;
+                }
+                
+                // Save to localStorage
+                localStorage.setItem('llm-provider', selectedProvider);
+                localStorage.setItem('custom-api-url', customUrl);
+                
+                // Update current settings
+                currentLLMProvider = selectedProvider;
+                customApiUrl = customUrl;
+                
+                closeConfigModal();
+                
+                // Show confirmation
+                addAIMessage(`Configuration updated! Using ${selectedProvider === 'custom' ? 'custom API' : selectedProvider} provider.`, false);
+            }
+
+            // Close modal when clicking outside
+            document.getElementById('config-overlay').addEventListener('click', (e) => {
+                if (e.target.id === 'config-overlay') {
+                    closeConfigModal();
+                }
+            });
+
+            // Handle Enter key in custom URL input
+            document.getElementById('custom-url-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveConfig();
+                }
+            });
 
             function toggleAIAssistant() {
                 const pane = document.getElementById('ai-assistant-pane');
