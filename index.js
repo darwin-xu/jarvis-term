@@ -79,6 +79,61 @@ app.post('/sessions/terminate', (req, res) => {
     }
 });
 
+// Add endpoint for saving command output logs
+app.post('/api/command-log', (req, res) => {
+    if (req.cookies.auth !== '1') {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    try {
+        const { command, output, timestamp, executionTime, sessionId } =
+            req.body;
+
+        if (!command) {
+            return res.status(400).json({ error: 'Command is required' });
+        }
+
+        const logEntry = {
+            command,
+            output: output || '',
+            timestamp: timestamp || new Date().toISOString(),
+            executionTime: executionTime || 0,
+            sessionId: sessionId || 'unknown',
+        };
+
+        const fs = require('fs');
+        const logFile = path.join(__dirname, 'command-logs.json');
+
+        // Read existing logs
+        let logs = [];
+        try {
+            if (fs.existsSync(logFile)) {
+                const data = fs.readFileSync(logFile, 'utf8');
+                logs = JSON.parse(data);
+            }
+        } catch (err) {
+            log('Error reading command logs:', err);
+        }
+
+        // Add new log entry
+        logs.push(logEntry);
+
+        // Keep only last 1000 entries
+        if (logs.length > 1000) {
+            logs = logs.slice(-1000);
+        }
+
+        // Write back to file
+        fs.writeFileSync(logFile, JSON.stringify(logs, null, 2));
+
+        log(`Command logged: ${command}`);
+        res.json({ ok: true });
+    } catch (error) {
+        log('Error saving command log:', error);
+        res.status(500).json({ error: 'Failed to save command log' });
+    }
+});
+
 const PING_INTERVAL = 15000;
 
 function attachToSession(ws, session, offset = 0) {

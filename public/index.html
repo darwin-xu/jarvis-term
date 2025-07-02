@@ -142,6 +142,31 @@
                 color: #ffffff;
             }
 
+            .ai-message.command {
+                align-self: flex-start;
+                background-color: #2d4a2d;
+                color: #90ee90;
+                border: 1px solid #4a6b4a;
+                font-family: 'Courier New', monospace;
+            }
+
+            .ai-message.command-output {
+                align-self: flex-start;
+                background-color: #1a1a1a;
+                color: #f0f0f0;
+                border: 1px solid #404040;
+                font-family: 'Courier New', monospace;
+                white-space: pre-wrap;
+                max-width: 95%;
+            }
+
+            .ai-message.error {
+                align-self: flex-start;
+                background-color: #4d2626;
+                color: #ffaaaa;
+                border: 1px solid #6b4a4a;
+            }
+
             .ai-input-container {
                 padding: 16px;
                 border-top: 1px solid #404040;
@@ -292,7 +317,7 @@
                 background-color: rgba(0, 122, 204, 0.1);
             }
 
-            .llm-option input[type="radio"] {
+            .llm-option input[type='radio'] {
                 margin: 0;
             }
 
@@ -535,74 +560,151 @@
                     <div class="ai-assistant-header">
                         <span>AI Assistant</span>
                         <div class="header-buttons">
-                            <button class="config-btn" onclick="openConfigModal()" title="Configuration">⚙</button>
-                            <button class="close-btn" onclick="toggleAIAssistant()" title="Close">×</button>
+                            <button
+                                class="config-btn"
+                                onclick="openConfigModal()"
+                                title="Configuration"
+                            >
+                                ⚙
+                            </button>
+                            <button
+                                class="close-btn"
+                                onclick="toggleAIAssistant()"
+                                title="Close"
+                            >
+                                ×
+                            </button>
                         </div>
                     </div>
                     <div class="ai-chat-container">
                         <div class="ai-chat-messages" id="ai-chat-messages">
                             <div class="ai-message assistant">
-                                Hi! I'm your AI assistant. I can help you with terminal commands, troubleshooting, and provide explanations. Press Cmd+I to toggle this pane.
+                                Hi! I'm your AI assistant. I can help you with
+                                terminal commands, troubleshooting, and provide
+                                explanations. To execute commands directly in
+                                the terminal, use these prefixes:<br />
+                                • /cmd &ltcommand&gt - Execute terminal
+                                command<br />
+                                • /exec &ltommand&gt - Execute terminal
+                                command<br />
+
+                                Example: /cmd ls -la Press Cmd+I to toggle this
+                                pane.
                             </div>
                         </div>
                         <div class="ai-input-container">
-                            <textarea 
-                                class="ai-input" 
-                                id="ai-input" 
+                            <textarea
+                                class="ai-input"
+                                id="ai-input"
                                 placeholder="How can I assist you?"
                                 rows="1"
                             ></textarea>
-                            <button class="ai-send-btn" id="ai-send-btn" onclick="sendAIMessage()">Send</button>
+                            <button
+                                class="ai-send-btn"
+                                id="ai-send-btn"
+                                onclick="sendAIMessage()"
+                            >
+                                Send
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="ai-toggle-hint" id="ai-toggle-hint">Press Cmd+I to toggle AI Assistant</div>
-            
+            <div class="ai-toggle-hint" id="ai-toggle-hint">
+                Press Cmd+I to toggle AI Assistant
+            </div>
+
             <!-- Config Modal -->
             <div class="config-overlay" id="config-overlay">
                 <div class="config-modal">
                     <div class="config-header">
                         <span>AI Assistant Configuration</span>
-                        <button class="close-btn" onclick="closeConfigModal()">×</button>
+                        <button class="close-btn" onclick="closeConfigModal()">
+                            ×
+                        </button>
                     </div>
                     <div class="config-content">
                         <div class="config-section">
-                            <label class="config-label">Choose LLM Provider:</label>
+                            <label class="config-label"
+                                >Choose LLM Provider:</label
+                            >
                             <div class="llm-options">
-                                <label class="llm-option" onclick="selectLLMProvider('openai')">
-                                    <input type="radio" name="llm-provider" value="openai" />
+                                <label
+                                    class="llm-option"
+                                    onclick="selectLLMProvider('openai')"
+                                >
+                                    <input
+                                        type="radio"
+                                        name="llm-provider"
+                                        value="openai"
+                                    />
                                     <div class="llm-option-info">
-                                        <div class="llm-option-name">OpenAI</div>
-                                        <div class="llm-option-desc">GPT models from OpenAI</div>
+                                        <div class="llm-option-name">
+                                            OpenAI
+                                        </div>
+                                        <div class="llm-option-desc">
+                                            GPT models from OpenAI
+                                        </div>
                                     </div>
                                 </label>
-                                <label class="llm-option" onclick="selectLLMProvider('openrouter')">
-                                    <input type="radio" name="llm-provider" value="openrouter" />
+                                <label
+                                    class="llm-option"
+                                    onclick="selectLLMProvider('openrouter')"
+                                >
+                                    <input
+                                        type="radio"
+                                        name="llm-provider"
+                                        value="openrouter"
+                                    />
                                     <div class="llm-option-info">
-                                        <div class="llm-option-name">OpenRouter</div>
-                                        <div class="llm-option-desc">Access to multiple LLM providers</div>
+                                        <div class="llm-option-name">
+                                            OpenRouter
+                                        </div>
+                                        <div class="llm-option-desc">
+                                            Access to multiple LLM providers
+                                        </div>
                                     </div>
                                 </label>
-                                <label class="llm-option" onclick="selectLLMProvider('custom')">
-                                    <input type="radio" name="llm-provider" value="custom" />
+                                <label
+                                    class="llm-option"
+                                    onclick="selectLLMProvider('custom')"
+                                >
+                                    <input
+                                        type="radio"
+                                        name="llm-provider"
+                                        value="custom"
+                                    />
                                     <div class="llm-option-info">
-                                        <div class="llm-option-name">Custom</div>
-                                        <div class="llm-option-desc">Your own API endpoint</div>
+                                        <div class="llm-option-name">
+                                            Custom
+                                        </div>
+                                        <div class="llm-option-desc">
+                                            Your own API endpoint
+                                        </div>
                                     </div>
                                 </label>
                             </div>
-                            <input 
-                                type="text" 
-                                class="custom-url-input" 
+                            <input
+                                type="text"
+                                class="custom-url-input"
                                 id="custom-url-input"
                                 placeholder="Enter custom API URL..."
                                 disabled
                             />
                         </div>
                         <div class="config-buttons">
-                            <button class="config-btn-secondary" onclick="closeConfigModal()">Cancel</button>
-                            <button class="config-btn-primary" onclick="saveConfig()">Save</button>
+                            <button
+                                class="config-btn-secondary"
+                                onclick="closeConfigModal()"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                class="config-btn-primary"
+                                onclick="saveConfig()"
+                            >
+                                Save
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -944,6 +1046,11 @@
                             setTimeout(sendTerminalSize, 100);
                         }
                     } catch {
+                        // Capture output for command execution
+                        captureTerminalOutput(e.data);
+
+                        console.log('Received data------:', e.data);
+
                         term.write(e.data);
                         bufferIndex++;
                     }
@@ -1051,12 +1158,16 @@
             let aiMessages = [];
             let currentLLMProvider = 'openai'; // default
             let customApiUrl = '';
+            let commandOutputLog = []; // Store command outputs for AI context
+            let isExecutingCommand = false;
+            let commandOutputBuffer = '';
+            let commandStartTime = null;
 
             // Config modal functions
             function openConfigModal() {
                 const overlay = document.getElementById('config-overlay');
                 overlay.style.display = 'flex';
-                
+
                 // Load current settings
                 loadConfigSettings();
             }
@@ -1068,30 +1179,37 @@
 
             function loadConfigSettings() {
                 // Load from localStorage
-                const savedProvider = localStorage.getItem('llm-provider') || 'openai';
-                const savedCustomUrl = localStorage.getItem('custom-api-url') || '';
-                
+                const savedProvider =
+                    localStorage.getItem('llm-provider') || 'openai';
+                const savedCustomUrl =
+                    localStorage.getItem('custom-api-url') || '';
+
                 currentLLMProvider = savedProvider;
                 customApiUrl = savedCustomUrl;
-                
+
                 // Update UI
-                const radioButton = document.querySelector(`input[name="llm-provider"][value="${savedProvider}"]`);
+                const radioButton = document.querySelector(
+                    `input[name="llm-provider"][value="${savedProvider}"]`
+                );
                 if (radioButton) {
                     radioButton.checked = true;
                     updateLLMOptionSelection(savedProvider);
                 }
-                
-                const customUrlInput = document.getElementById('custom-url-input');
+
+                const customUrlInput =
+                    document.getElementById('custom-url-input');
                 customUrlInput.value = savedCustomUrl;
                 customUrlInput.disabled = savedProvider !== 'custom';
             }
 
             function selectLLMProvider(provider) {
-                const radioButton = document.querySelector(`input[name="llm-provider"][value="${provider}"]`);
+                const radioButton = document.querySelector(
+                    `input[name="llm-provider"][value="${provider}"]`
+                );
                 if (radioButton) {
                     radioButton.checked = true;
                 }
-                
+
                 updateLLMOptionSelection(provider);
                 currentLLMProvider = provider;
             }
@@ -1101,67 +1219,333 @@
                 document.querySelectorAll('.llm-option').forEach(option => {
                     option.classList.remove('selected');
                 });
-                
+
                 // Add selected class to current option
-                const selectedOption = document.querySelector(`input[name="llm-provider"][value="${provider}"]`).closest('.llm-option');
+                const selectedOption = document
+                    .querySelector(
+                        `input[name="llm-provider"][value="${provider}"]`
+                    )
+                    .closest('.llm-option');
                 if (selectedOption) {
                     selectedOption.classList.add('selected');
                 }
-                
+
                 // Enable/disable custom URL input
-                const customUrlInput = document.getElementById('custom-url-input');
+                const customUrlInput =
+                    document.getElementById('custom-url-input');
                 customUrlInput.disabled = provider !== 'custom';
-                
+
                 if (provider === 'custom') {
                     customUrlInput.focus();
                 }
             }
 
             function saveConfig() {
-                const selectedProvider = document.querySelector('input[name="llm-provider"]:checked')?.value || 'openai';
-                const customUrl = document.getElementById('custom-url-input').value.trim();
-                
+                const selectedProvider =
+                    document.querySelector('input[name="llm-provider"]:checked')
+                        ?.value || 'openai';
+                const customUrl = document
+                    .getElementById('custom-url-input')
+                    .value.trim();
+
                 // Validate custom URL if selected
                 if (selectedProvider === 'custom' && !customUrl) {
                     alert('Please enter a custom API URL');
                     return;
                 }
-                
+
                 // Save to localStorage
                 localStorage.setItem('llm-provider', selectedProvider);
                 localStorage.setItem('custom-api-url', customUrl);
-                
+
                 // Update current settings
                 currentLLMProvider = selectedProvider;
                 customApiUrl = customUrl;
-                
+
                 closeConfigModal();
-                
+
                 // Show confirmation
-                addAIMessage(`Configuration updated! Using ${selectedProvider === 'custom' ? 'custom API' : selectedProvider} provider.`, false);
+                addAIMessage(
+                    `Configuration updated! Using ${selectedProvider === 'custom' ? 'custom API' : selectedProvider} provider.`,
+                    false
+                );
             }
 
             // Close modal when clicking outside
-            document.getElementById('config-overlay').addEventListener('click', (e) => {
-                if (e.target.id === 'config-overlay') {
-                    closeConfigModal();
-                }
-            });
+            document
+                .getElementById('config-overlay')
+                .addEventListener('click', e => {
+                    if (e.target.id === 'config-overlay') {
+                        closeConfigModal();
+                    }
+                });
 
             // Handle Enter key in custom URL input
-            document.getElementById('custom-url-input').addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    saveConfig();
+            document
+                .getElementById('custom-url-input')
+                .addEventListener('keydown', e => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        saveConfig();
+                    }
+                });
+
+            // Command execution functionality
+            function executeCommand(command) {
+                if (
+                    !socket ||
+                    socket.readyState !== WebSocket.OPEN ||
+                    !isConnected
+                ) {
+                    addAIMessage(
+                        '❌ Error: Terminal not connected. Please connect to SSH first.',
+                        false,
+                        'error'
+                    );
+                    return;
                 }
-            });
+
+                if (isExecutingCommand) {
+                    addAIMessage(
+                        '❌ Error: Another command is already executing. Please wait.',
+                        false,
+                        'error'
+                    );
+                    return;
+                }
+
+                // Reset command state
+                isExecutingCommand = true;
+                commandOutputBuffer = '';
+                commandStartTime = Date.now();
+
+                // Add command to AI chat
+                addAIMessage(`🔧 Executing: ${command}`, false, 'command');
+
+                // Send command to terminal
+                const commandToSend = command.trim() + '\n';
+                socket.send(
+                    JSON.stringify({ type: 'data', data: commandToSend })
+                );
+
+                // Set a timeout to stop capturing output after 10 seconds
+                setTimeout(() => {
+                    if (isExecutingCommand) {
+                        finishCommandExecution(command, true);
+                    }
+                }, 10000);
+            }
+
+            function finishCommandExecution(command, isTimeout = false) {
+                if (!isExecutingCommand) return;
+
+                isExecutingCommand = false;
+                const executionTime = Date.now() - commandStartTime;
+
+                // Clean up the output buffer
+                let cleanOutput = commandOutputBuffer
+                    .replace(/\x1b\[[0-9;]*m/g, '') // Remove ANSI color codes
+                    .replace(/\r\n/g, '\n')
+                    .replace(/\r/g, '\n')
+                    .trim();
+
+                // Log command and output
+                const logEntry = {
+                    command: command,
+                    output: cleanOutput,
+                    timestamp: new Date().toISOString(),
+                    executionTime: executionTime,
+                    isTimeout: isTimeout,
+                };
+                commandOutputLog.push(logEntry);
+
+                // Keep only last 50 commands in memory
+                if (commandOutputLog.length > 50) {
+                    commandOutputLog.shift();
+                }
+
+                // Save to localStorage for persistence
+                try {
+                    localStorage.setItem(
+                        'command-output-log',
+                        JSON.stringify(commandOutputLog.slice(-20))
+                    ); // Keep last 20 in storage
+                } catch (e) {
+                    console.warn(
+                        'Failed to save command log to localStorage:',
+                        e
+                    );
+                }
+
+                // Also save to server
+                saveCommandToServer(logEntry);
+
+                // Display result in AI chat
+                if (isTimeout) {
+                    addAIMessage(
+                        '⏰ Command execution timeout (10s). Output captured so far:',
+                        false,
+                        'error'
+                    );
+                } else {
+                    addAIMessage(
+                        `✅ Command completed in ${executionTime}ms`,
+                        false,
+                        'command'
+                    );
+                }
+
+                if (cleanOutput) {
+                    addAIMessage(
+                        `📄 Output:\n${cleanOutput}`,
+                        false,
+                        'command-output'
+                    );
+                } else {
+                    addAIMessage('📄 No output captured', false, 'command');
+                }
+
+                // Reset buffer
+                commandOutputBuffer = '';
+            }
+
+            function captureTerminalOutput(data) {
+                if (isExecutingCommand) {
+                    commandOutputBuffer += data;
+
+                    // Check if command has finished (look for prompt patterns)
+                    // This is a simple heuristic - you might need to adjust based on your shell
+                    if (
+                        data.includes('$ ') ||
+                        data.includes('# ') ||
+                        data.includes('> ') ||
+                        data.includes('bash-') ||
+                        data.includes(': ~') ||
+                        data.includes(']:')
+                    ) {
+                        console.log(
+                            'Command prompt detected, finishing execution...'
+                        );
+                        // Delay a bit to ensure we capture the full output
+                        setTimeout(() => {
+                            if (isExecutingCommand) {
+                                // Get the last command from history
+                                const lastLog =
+                                    commandOutputLog[
+                                        commandOutputLog.length - 1
+                                    ];
+                                if (
+                                    lastLog &&
+                                    Date.now() - commandStartTime > 500
+                                ) {
+                                    // At least 500ms since start
+                                    finishCommandExecution(
+                                        lastLog.command || 'unknown'
+                                    );
+                                }
+                            }
+                        }, 200);
+                    }
+                }
+            }
+
+            function parseCommand(message) {
+                // Check if message starts with command prefixes
+                const commandPrefixes = ['/cmd', '/command', '/exec', '/run'];
+                const lowercaseMessage = message.toLowerCase().trim();
+
+                for (const prefix of commandPrefixes) {
+                    if (lowercaseMessage.startsWith(prefix + ' ')) {
+                        return message.substring(prefix.length + 1).trim();
+                    }
+                }
+
+                return null;
+            }
+
+            function loadCommandHistory() {
+                try {
+                    const saved = localStorage.getItem('command-output-log');
+                    if (saved) {
+                        commandOutputLog = JSON.parse(saved);
+                    }
+                } catch (e) {
+                    console.warn('Failed to load command history:', e);
+                    commandOutputLog = [];
+                }
+            }
+
+            async function saveCommandToServer(logEntry) {
+                try {
+                    const sessionId =
+                        localStorage.getItem('sessionId') || 'unknown';
+                    const response = await fetch('/api/command-log', {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            ...logEntry,
+                            sessionId: sessionId,
+                        }),
+                    });
+
+                    if (!response.ok) {
+                        console.warn(
+                            'Failed to save command log to server:',
+                            response.statusText
+                        );
+                    }
+                } catch (error) {
+                    console.warn('Error saving command log to server:', error);
+                }
+            }
+
+            function getCommandHistory() {
+                return commandOutputLog.slice(); // Return a copy
+            }
+
+            function getRecentCommandContext(limit = 5) {
+                const recent = commandOutputLog.slice(-limit);
+                return recent.map(entry => ({
+                    command: entry.command,
+                    output: entry.output,
+                    timestamp: entry.timestamp,
+                    success:
+                        !entry.output.toLowerCase().includes('error') &&
+                        !entry.output
+                            .toLowerCase()
+                            .includes('command not found'),
+                }));
+            }
+
+            function formatCommandContextForAI() {
+                const context = getRecentCommandContext();
+                if (context.length === 0) {
+                    return 'No recent commands executed.';
+                }
+
+                return (
+                    'Recent command history:\n' +
+                    context
+                        .map(
+                            cmd =>
+                                `Command: ${cmd.command}\nOutput: ${cmd.output.substring(0, 200)}${cmd.output.length > 200 ? '...' : ''}\nStatus: ${cmd.success ? 'Success' : 'Error'}\n`
+                        )
+                        .join('\n---\n')
+                );
+            }
+
+            // Load command history on page load
+            loadCommandHistory();
 
             function toggleAIAssistant() {
                 const pane = document.getElementById('ai-assistant-pane');
                 const hint = document.getElementById('ai-toggle-hint');
-                
+
                 aiAssistantOpen = !aiAssistantOpen;
-                
+
                 if (aiAssistantOpen) {
                     pane.classList.add('open');
                     hint.classList.remove('show');
@@ -1188,38 +1572,78 @@
                 }
             }
 
-            function addAIMessage(content, isUser = false) {
-                const messagesContainer = document.getElementById('ai-chat-messages');
+            function addAIMessage(
+                content,
+                isUser = false,
+                messageType = 'normal'
+            ) {
+                const messagesContainer =
+                    document.getElementById('ai-chat-messages');
                 const messageDiv = document.createElement('div');
-                messageDiv.className = `ai-message ${isUser ? 'user' : 'assistant'}`;
+
+                let className = `ai-message ${isUser ? 'user' : 'assistant'}`;
+
+                // Apply special styling for different message types
+                if (!isUser) {
+                    if (messageType === 'command') {
+                        className = 'ai-message command';
+                    } else if (messageType === 'command-output') {
+                        className = 'ai-message command-output';
+                    } else if (messageType === 'error') {
+                        className = 'ai-message error';
+                    }
+                }
+
+                messageDiv.className = className;
                 messageDiv.textContent = content;
                 messagesContainer.appendChild(messageDiv);
-                
+
                 // Scroll to bottom
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                
+
                 // Store message
-                aiMessages.push({ content, isUser, timestamp: Date.now() });
+                aiMessages.push({
+                    content,
+                    isUser,
+                    messageType,
+                    timestamp: Date.now(),
+                });
             }
 
             function sendAIMessage() {
                 const input = document.getElementById('ai-input');
                 const sendBtn = document.getElementById('ai-send-btn');
                 const message = input.value.trim();
-                
+
                 if (!message) return;
-                
+
                 // Add user message
                 addAIMessage(message, true);
-                
-                // Clear input and disable send button
+
+                // Clear input
                 input.value = '';
+
+                // Check if this is a command
+                const command = parseCommand(message);
+                if (command) {
+                    executeCommand(command);
+                    return;
+                }
+
+                // Regular AI message handling
                 sendBtn.disabled = true;
                 sendBtn.textContent = 'Sending...';
-                
+
                 // Simulate AI response (placeholder for now)
                 setTimeout(() => {
-                    addAIMessage("I'm a placeholder AI response. Integration with actual AI service will be implemented next.");
+                    const helpText = `I'm a placeholder AI response. To execute commands, use one of these prefixes:
+• /cmd <command> - Execute a terminal command
+• /command <command> - Execute a terminal command  
+• /exec <command> - Execute a terminal command
+• /run <command> - Execute a terminal command
+
+Example: /cmd ls -la`;
+                    addAIMessage(helpText, false);
                     sendBtn.disabled = false;
                     sendBtn.textContent = 'Send';
                     input.focus();
@@ -1227,7 +1651,7 @@
             }
 
             // Handle Cmd+I keyboard shortcut
-            document.addEventListener('keydown', (e) => {
+            document.addEventListener('keydown', e => {
                 if (e.metaKey && e.key === 'i') {
                     e.preventDefault();
                     toggleAIAssistant();
@@ -1235,18 +1659,22 @@
             });
 
             // Handle Enter key in AI input
-            document.getElementById('ai-input').addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendAIMessage();
-                }
-            });
+            document
+                .getElementById('ai-input')
+                .addEventListener('keydown', e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendAIMessage();
+                    }
+                });
 
             // Auto-resize textarea
-            document.getElementById('ai-input').addEventListener('input', function() {
-                this.style.height = 'auto';
-                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-            });
+            document
+                .getElementById('ai-input')
+                .addEventListener('input', function () {
+                    this.style.height = 'auto';
+                    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+                });
 
             // Show hint on page load
             setTimeout(showAIToggleHint, 2000);
