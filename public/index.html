@@ -2,53 +2,385 @@
 <html>
     <head>
         <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link
             rel="stylesheet"
             href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css"
         />
         <style>
+            * {
+                box-sizing: border-box;
+            }
+
             html,
             body {
-                height: 100%;
+                height: 100vh;
                 margin: 0;
+                padding: 0;
+                font-family:
+                    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                    sans-serif;
+                background-color: #1e1e1e;
+                color: #ffffff;
+                overflow: hidden;
             }
+
+            .container {
+                display: flex;
+                flex-direction: column;
+                height: 100vh;
+                width: 100vw;
+            }
+
+            #connect-form {
+                flex-shrink: 0;
+                padding: 15px;
+                background-color: #2d2d2d;
+                border-bottom: 1px solid #404040;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                align-items: center;
+            }
+
+            #connect-form input {
+                padding: 8px 12px;
+                border: 1px solid #404040;
+                border-radius: 4px;
+                background-color: #3c3c3c;
+                color: #ffffff;
+                font-size: 14px;
+                min-width: 120px;
+                flex: 1;
+            }
+
+            #connect-form input:focus {
+                outline: none;
+                border-color: #007acc;
+                box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.3);
+            }
+
+            #connect-form button {
+                padding: 8px 16px;
+                background-color: #007acc;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+                transition: background-color 0.2s;
+            }
+
+            #connect-form button:hover {
+                background-color: #005a9e;
+            }
+
+            #connect-form label {
+                font-size: 14px;
+                font-weight: 500;
+                white-space: nowrap;
+            }
+
+            #terminal-container {
+                flex: 1;
+                min-height: 0;
+                padding: 0;
+                background-color: #000000;
+                position: relative;
+            }
+
             #terminal {
-                height: calc(100% - 40px);
+                width: 100%;
+                height: 100%;
             }
-            form {
-                padding: 10px;
+
+            .status {
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                background-color: rgba(0, 0, 0, 0.8);
+                color: #00ff00;
+                padding: 5px 10px;
+                border-radius: 4px;
+                font-size: 12px;
+                font-family: monospace;
+                display: none;
+            }
+
+            @media (max-width: 768px) {
+                #connect-form {
+                    flex-direction: column;
+                    align-items: stretch;
+                }
+
+                #connect-form input {
+                    min-width: auto;
+                }
             }
         </style>
     </head>
     <body>
-        <form id="connect-form">
-            Host <input id="host" required /> User
-            <input id="user" required /> Password
-            <input id="pass" type="password" required />
-            <button type="submit">Connect</button>
-        </form>
-        <div id="terminal"></div>
+        <div class="container">
+            <form id="connect-form">
+                <label for="host">Host:</label>
+                <input
+                    id="host"
+                    name="host"
+                    placeholder="hostname or IP"
+                    required
+                />
+                <label for="user">User:</label>
+                <input id="user" name="user" placeholder="username" required />
+                <label for="pass">Password:</label>
+                <input
+                    id="pass"
+                    name="pass"
+                    type="password"
+                    placeholder="password"
+                    required
+                />
+                <button type="submit">Connect</button>
+            </form>
+            <div id="terminal-container">
+                <div id="terminal"></div>
+                <div class="status" id="status">Connected</div>
+            </div>
+        </div>
+
         <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
         <script>
-            const term = new Terminal();
-            term.open(document.getElementById('terminal'));
+            let term;
+            let fitAddon;
             let socket;
+            let isConnected = false;
+
+            // Function to resize terminal to fit container
+            function resizeTerminal() {
+                if (term && fitAddon) {
+                    try {
+                        fitAddon.fit();
+                        console.log(
+                            `Terminal resized to: ${term.cols}x${term.rows}`
+                        );
+
+                        // Send resize info to server if connected
+                        if (
+                            socket &&
+                            socket.readyState === WebSocket.OPEN &&
+                            isConnected
+                        ) {
+                            const { cols, rows } = term;
+                            socket.send(
+                                JSON.stringify({
+                                    type: 'resize',
+                                    cols: cols,
+                                    rows: rows,
+                                })
+                            );
+                        }
+                    } catch (error) {
+                        console.warn('Error resizing terminal:', error);
+                    }
+                }
+            }
+
+            // Debounce resize function to avoid excessive calls
+            let resizeTimeout;
+            function debouncedResize() {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(resizeTerminal, 100);
+            }
+
+            // Function to initialize terminal with proper sizing
+            function initializeTerminal() {
+                // Initialize terminal with responsive options
+                term = new Terminal({
+                    cursorBlink: true,
+                    fontSize: 14,
+                    fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+                    theme: {
+                        background: '#000000',
+                        foreground: '#ffffff',
+                        cursor: '#ffffff',
+                        selection: 'rgba(255, 255, 255, 0.3)',
+                    },
+                });
+
+                // Fit addon for automatic resizing
+                fitAddon = new FitAddon.FitAddon();
+                term.loadAddon(fitAddon);
+
+                const terminalElement = document.getElementById('terminal');
+                term.open(terminalElement);
+
+                // Wait for the DOM to be fully rendered and CSS applied
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        // Check if container has proper dimensions
+                        const container =
+                            document.getElementById('terminal-container');
+                        console.log(
+                            `Container dimensions: ${container.offsetWidth}x${container.offsetHeight}`
+                        );
+
+                        // Multiple resize attempts to ensure proper sizing
+                        resizeTerminal();
+                        setTimeout(resizeTerminal, 50);
+                        setTimeout(resizeTerminal, 150);
+                        setTimeout(resizeTerminal, 300);
+                    });
+                });
+
+                // Listen for window resize events
+                window.addEventListener('resize', debouncedResize);
+
+                // Listen for orientation change on mobile devices
+                window.addEventListener('orientationchange', () => {
+                    setTimeout(debouncedResize, 500);
+                });
+
+                // Handle terminal focus/blur for better UX
+                term.onFocus(() => {
+                    document.getElementById(
+                        'terminal-container'
+                    ).style.borderColor = '#007acc';
+                });
+
+                term.onBlur(() => {
+                    document.getElementById(
+                        'terminal-container'
+                    ).style.borderColor = 'transparent';
+                });
+
+                // Focus terminal
+                term.focus();
+            }
+
+            // Initialize terminal when DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener(
+                    'DOMContentLoaded',
+                    initializeTerminal
+                );
+            } else {
+                initializeTerminal();
+            }
+
+            function updateStatus(message, isError = false) {
+                const status = document.getElementById('status');
+                status.textContent = message;
+                status.style.display = 'block';
+                status.style.color = isError ? '#ff6b6b' : '#00ff00';
+
+                if (!isError) {
+                    setTimeout(() => {
+                        status.style.display = 'none';
+                    }, 3000);
+                }
+            }
 
             document
                 .getElementById('connect-form')
                 .addEventListener('submit', e => {
                     e.preventDefault();
-                    const host = document.getElementById('host').value;
-                    const user = document.getElementById('user').value;
+
+                    if (socket) {
+                        socket.close();
+                    }
+
+                    const host = document.getElementById('host').value.trim();
+                    const user = document.getElementById('user').value.trim();
                     const pass = document.getElementById('pass').value;
+
+                    if (!host || !user || !pass) {
+                        updateStatus('Please fill in all fields', true);
+                        return;
+                    }
+
+                    updateStatus('Connecting...');
+
+                    const wsProtocol =
+                        location.protocol === 'https:' ? 'wss:' : 'ws:';
                     socket = new WebSocket(
-                        `ws://${location.host}/terminal?host=${encodeURIComponent(host)}&user=${encodeURIComponent(user)}&pass=${encodeURIComponent(pass)}`
+                        `${wsProtocol}//${location.host}/terminal?host=${encodeURIComponent(host)}&user=${encodeURIComponent(user)}&pass=${encodeURIComponent(pass)}`
                     );
-                    socket.onmessage = e => term.write(e.data);
-                    socket.onclose = () => term.write('\r\nConnection closed.');
-                    term.onData(data => socket.send(data));
-                    document.getElementById('connect-form').style.display =
-                        'none';
+
+                    socket.onopen = () => {
+                        isConnected = true;
+                        updateStatus('SSH connecting...');
+                        document.getElementById('connect-form').style.display =
+                            'none';
+                    };
+
+                    socket.onmessage = e => {
+                        try {
+                            // Try to parse as JSON first (for control messages)
+                            const data = JSON.parse(e.data);
+                            if (data.type === 'error') {
+                                updateStatus(data.message, true);
+                            } else if (data.type === 'ready') {
+                                updateStatus('Connected');
+                                // Terminal is ready, send the correct size immediately
+                                const sendTerminalSize = () => {
+                                    if (term && fitAddon) {
+                                        try {
+                                            fitAddon.fit();
+                                            const { cols, rows } = term;
+                                            console.log(
+                                                `Sending terminal size after ready: ${cols}x${rows}`
+                                            );
+                                            socket.send(
+                                                JSON.stringify({
+                                                    type: 'resize',
+                                                    cols: cols,
+                                                    rows: rows,
+                                                })
+                                            );
+                                        } catch (error) {
+                                            console.warn(
+                                                'Error sending terminal size:',
+                                                error
+                                            );
+                                        }
+                                    }
+                                };
+
+                                // Send size immediately and with a small delay
+                                sendTerminalSize();
+                                setTimeout(sendTerminalSize, 100);
+                            }
+                        } catch {
+                            // If not JSON, treat as terminal data
+                            term.write(e.data);
+                        }
+                    };
+
+                    socket.onclose = event => {
+                        isConnected = false;
+                        if (event.wasClean) {
+                            updateStatus('Connection closed', true);
+                        } else {
+                            updateStatus('Connection lost', true);
+                        }
+                        term.write('\r\n\x1b[31mConnection closed.\x1b[0m\r\n');
+                    };
+
+                    socket.onerror = () => {
+                        isConnected = false;
+                        updateStatus('Connection failed', true);
+                    };
+
+                    term.onData(data => {
+                        if (socket && socket.readyState === WebSocket.OPEN) {
+                            socket.send(
+                                JSON.stringify({
+                                    type: 'data',
+                                    data: data,
+                                })
+                            );
+                        }
+                    });
                 });
         </script>
     </body>
