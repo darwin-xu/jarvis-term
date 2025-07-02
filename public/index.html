@@ -32,6 +32,171 @@
                 width: 100vw;
             }
 
+            .main-content {
+                display: flex;
+                flex: 1;
+                min-height: 0;
+                position: relative;
+            }
+
+            .terminal-section {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                min-width: 0;
+            }
+
+            .ai-assistant-pane {
+                position: absolute;
+                top: 0;
+                right: 0;
+                width: 400px;
+                height: 100%;
+                background-color: #2d2d2d;
+                border-left: 1px solid #404040;
+                display: flex;
+                flex-direction: column;
+                transform: translateX(100%);
+                transition: transform 0.3s ease;
+                z-index: 1000;
+                box-shadow: -2px 0 8px rgba(0, 0, 0, 0.3);
+            }
+
+            .ai-assistant-pane.open {
+                transform: translateX(0);
+            }
+
+            .ai-assistant-header {
+                padding: 12px 16px;
+                background-color: #363636;
+                border-bottom: 1px solid #404040;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                font-size: 14px;
+                font-weight: 600;
+            }
+
+            .ai-assistant-header .close-btn {
+                background: none;
+                border: none;
+                color: #ffffff;
+                cursor: pointer;
+                padding: 4px;
+                border-radius: 2px;
+                font-size: 16px;
+                line-height: 1;
+            }
+
+            .ai-assistant-header .close-btn:hover {
+                background-color: #404040;
+            }
+
+            .ai-chat-container {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                min-height: 0;
+            }
+
+            .ai-chat-messages {
+                flex: 1;
+                overflow-y: auto;
+                padding: 16px;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .ai-message {
+                max-width: 85%;
+                padding: 8px 12px;
+                border-radius: 12px;
+                font-size: 14px;
+                line-height: 1.4;
+                word-wrap: break-word;
+            }
+
+            .ai-message.user {
+                align-self: flex-end;
+                background-color: #007acc;
+                color: white;
+            }
+
+            .ai-message.assistant {
+                align-self: flex-start;
+                background-color: #404040;
+                color: #ffffff;
+            }
+
+            .ai-input-container {
+                padding: 16px;
+                border-top: 1px solid #404040;
+                display: flex;
+                gap: 8px;
+            }
+
+            .ai-input {
+                flex: 1;
+                padding: 8px 12px;
+                border: 1px solid #404040;
+                border-radius: 20px;
+                background-color: #3c3c3c;
+                color: #ffffff;
+                font-size: 14px;
+                outline: none;
+                resize: none;
+                min-height: 36px;
+                max-height: 120px;
+            }
+
+            .ai-input:focus {
+                border-color: #007acc;
+                box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.3);
+            }
+
+            .ai-send-btn {
+                padding: 8px 16px;
+                background-color: #007acc;
+                color: white;
+                border: none;
+                border-radius: 20px;
+                cursor: pointer;
+                font-size: 14px;
+                transition: background-color 0.2s;
+                align-self: flex-end;
+            }
+
+            .ai-send-btn:hover {
+                background-color: #005a9e;
+            }
+
+            .ai-send-btn:disabled {
+                background-color: #404040;
+                cursor: not-allowed;
+            }
+
+            .ai-toggle-hint {
+                position: fixed;
+                top: 50%;
+                right: 16px;
+                transform: translateY(-50%);
+                background-color: rgba(0, 0, 0, 0.8);
+                color: #ffffff;
+                padding: 8px 12px;
+                border-radius: 4px;
+                font-size: 12px;
+                font-family: monospace;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+                pointer-events: none;
+                z-index: 1000;
+            }
+
+            .ai-toggle-hint.show {
+                opacity: 1;
+            }
+
             #connect-form {
                 flex-shrink: 0;
                 padding: 15px;
@@ -135,6 +300,19 @@
                 #connect-form input {
                     min-width: auto;
                 }
+
+                .ai-assistant-pane {
+                    width: 100%;
+                    transform: translateX(100%);
+                }
+
+                .ai-assistant-pane.open {
+                    transform: translateX(0);
+                }
+
+                .ai-toggle-hint {
+                    display: none;
+                }
             }
         </style>
     </head>
@@ -172,10 +350,37 @@
                 />
                 <button type="submit">Connect</button>
             </form>
-            <div id="terminal-container">
-                <div id="terminal"></div>
-                <div class="status" id="status">Connected</div>
+            <div class="main-content">
+                <div class="terminal-section">
+                    <div id="terminal-container">
+                        <div id="terminal"></div>
+                        <div class="status" id="status">Connected</div>
+                    </div>
+                </div>
+                <div class="ai-assistant-pane" id="ai-assistant-pane">
+                    <div class="ai-assistant-header">
+                        <span>AI Assistant</span>
+                        <button class="close-btn" onclick="toggleAIAssistant()">×</button>
+                    </div>
+                    <div class="ai-chat-container">
+                        <div class="ai-chat-messages" id="ai-chat-messages">
+                            <div class="ai-message assistant">
+                                Hi! I'm your AI assistant. I can help you with terminal commands, troubleshooting, and provide explanations. Press Cmd+I to toggle this pane.
+                            </div>
+                        </div>
+                        <div class="ai-input-container">
+                            <textarea 
+                                class="ai-input" 
+                                id="ai-input" 
+                                placeholder="How can I assist you?"
+                                rows="1"
+                            ></textarea>
+                            <button class="ai-send-btn" id="ai-send-btn" onclick="sendAIMessage()">Send</button>
+                        </div>
+                    </div>
+                </div>
             </div>
+            <div class="ai-toggle-hint" id="ai-toggle-hint">Press Cmd+I to toggle AI Assistant</div>
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
@@ -614,6 +819,105 @@
                 }
             });
             window.addEventListener('keydown', handleKeyRetry);
+
+            // AI Assistant functionality
+            let aiAssistantOpen = false;
+            let aiMessages = [];
+
+            function toggleAIAssistant() {
+                const pane = document.getElementById('ai-assistant-pane');
+                const hint = document.getElementById('ai-toggle-hint');
+                
+                aiAssistantOpen = !aiAssistantOpen;
+                
+                if (aiAssistantOpen) {
+                    pane.classList.add('open');
+                    hint.classList.remove('show');
+                    // Focus on the AI input when opening
+                    setTimeout(() => {
+                        document.getElementById('ai-input').focus();
+                    }, 300);
+                } else {
+                    pane.classList.remove('open');
+                    // Return focus to terminal when closing
+                    if (term) {
+                        term.focus();
+                    }
+                }
+            }
+
+            function showAIToggleHint() {
+                if (!aiAssistantOpen) {
+                    const hint = document.getElementById('ai-toggle-hint');
+                    hint.classList.add('show');
+                    setTimeout(() => {
+                        hint.classList.remove('show');
+                    }, 3000);
+                }
+            }
+
+            function addAIMessage(content, isUser = false) {
+                const messagesContainer = document.getElementById('ai-chat-messages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `ai-message ${isUser ? 'user' : 'assistant'}`;
+                messageDiv.textContent = content;
+                messagesContainer.appendChild(messageDiv);
+                
+                // Scroll to bottom
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                
+                // Store message
+                aiMessages.push({ content, isUser, timestamp: Date.now() });
+            }
+
+            function sendAIMessage() {
+                const input = document.getElementById('ai-input');
+                const sendBtn = document.getElementById('ai-send-btn');
+                const message = input.value.trim();
+                
+                if (!message) return;
+                
+                // Add user message
+                addAIMessage(message, true);
+                
+                // Clear input and disable send button
+                input.value = '';
+                sendBtn.disabled = true;
+                sendBtn.textContent = 'Sending...';
+                
+                // Simulate AI response (placeholder for now)
+                setTimeout(() => {
+                    addAIMessage("I'm a placeholder AI response. Integration with actual AI service will be implemented next.");
+                    sendBtn.disabled = false;
+                    sendBtn.textContent = 'Send';
+                    input.focus();
+                }, 1000);
+            }
+
+            // Handle Cmd+I keyboard shortcut
+            document.addEventListener('keydown', (e) => {
+                if (e.metaKey && e.key === 'i') {
+                    e.preventDefault();
+                    toggleAIAssistant();
+                }
+            });
+
+            // Handle Enter key in AI input
+            document.getElementById('ai-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendAIMessage();
+                }
+            });
+
+            // Auto-resize textarea
+            document.getElementById('ai-input').addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+            });
+
+            // Show hint on page load
+            setTimeout(showAIToggleHint, 2000);
         </script>
     </body>
 </html>
