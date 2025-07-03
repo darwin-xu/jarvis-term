@@ -97,7 +97,7 @@ npm run server
 
 1. **Authentication**: Enter your application password to access the terminal
 2. **SSH Connection**: The terminal automatically connects using configured credentials
-3. **AI Assistant**: Press `Cmd+I` (or `Ctrl+I`) to open the AI assistant
+3. **AI Assistant**: Press `Cmd+I` on macOS or `Ctrl+I` on Windows/Linux to open the AI assistant
 4. **Command Execution**: Use prefixes like `/cmd`, `/command`, `/exec`, or `/run` in the AI chat to execute terminal commands
 5. **Configuration**: Click the gear icon in the AI assistant to configure settings
 

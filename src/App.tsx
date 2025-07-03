@@ -50,7 +50,8 @@ const App: React.FC = () => {
     useEffect(() => {
         // Handle Cmd+I keyboard shortcut for AI assistant
         const handleKeyDown = (e: KeyboardEvent): void => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+            const isIKey = e.code === 'KeyI' || e.key.toLowerCase() === 'i';
+            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && isIKey) {
                 e.preventDefault();
                 toggleAIAssistant();
             }
