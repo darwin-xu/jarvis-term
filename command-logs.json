@@ -1,0 +1,30 @@
+[
+    {
+        "command": "ls",
+        "output": "ls\nbackup/  scripts/\ndarwin@darwin-nas:/volume1/home/darwin $",
+        "timestamp": "2025-07-02T03:59:24.190Z",
+        "executionTime": 117,
+        "sessionId": "142ecf1b-f368-4f46-889b-5e9687177583"
+    },
+    {
+        "command": "uptime",
+        "output": "uptime\n 21:52:24 up 142 days, 22:12,  2 users,  load average: 2.02, 2.12, 2.14\ndarwin@darwin-nas:/volume1/home/darwin $",
+        "timestamp": "2025-07-02T13:52:24.713Z",
+        "executionTime": 186,
+        "sessionId": "142ecf1b-f368-4f46-889b-5e9687177583"
+    },
+    {
+        "command": "ls",
+        "output": "ls\nbackup/  scripts/\ndarwin@darwin-nas:/volume1/home/darwin $",
+        "timestamp": "2025-07-02T14:04:37.805Z",
+        "executionTime": 172,
+        "sessionId": "142ecf1b-f368-4f46-889b-5e9687177583"
+    },
+    {
+        "command": "ls",
+        "output": "ls\nbackup/  scripts/\ndarwin@darwin-nas:/volume1/home/darwin $",
+        "timestamp": "2025-07-02T22:52:20.387Z",
+        "executionTime": 156,
+        "sessionId": "a960a781-70d2-48f2-8785-5e596ea5fba1"
+    }
+]

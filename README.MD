@@ -1,67 +1,172 @@
-# AI-Enhanced Developer Assistant
+# SSH Terminal Tool - React + TypeScript
 
-This project aims to build a Node.js-based application that leverages AI to observe, enhance, and intelligently assist with a wide range of developer workflows, starting with terminal sessions and expanding to other tools and environments.
+A modern web-based SSH terminal application built with React, TypeScript, and Node.js. Features a clean, responsive interface with an integrated AI assistant for command help and automation.
 
-## ✨ Features
+## Features
 
-- 🔍 **Context Awareness**: Observe terminal sessions, code editors, and command outputs.
-- 🤖 **AI Assistance**:
+- **Web-based SSH Terminal**: Connect to remote servers through your browser
+- **AI Assistant**: Integrated AI helper with command execution capabilities
+- **Modern React UI**: Built with React 18 and TypeScript for type safety
+- **Real-time Communication**: WebSocket-based terminal communication
+- **Session Management**: Automatic session cleanup and reconnection
+- **Command Logging**: Track and log terminal commands
+- **Responsive Design**: Works on desktop and mobile devices
 
-    - Natural language → shell command or code snippet translation.
-    - Smart command/code suggestions and completions.
-    - Session or activity summarization with optional script generation.
+## Architecture
 
-- 🧠 **Workflow Automation**: Detect patterns in development activities and suggest reusable automations.
-- 📜 **Summarization & Logging**: Generate readable summaries, changelogs, or documentation from developer activity.
+The project is now organized with a clear separation of concerns:
 
-## 🛠 Stack Overview
-
-### Programming Language
-
-- **Node.js**
-
-### Core Interaction Targets
-
-- **Terminal**: via [`node-pty`](https://github.com/microsoft/node-pty)
-- **Code Editor**: future integration with VS Code API or LSPs
-- **Shell Multiplexers**: optional integration with [`tmux`](https://github.com/tmux/tmux/wiki)
-
-### AI Backend
-
-- **Flexible model backend**: supports OpenAI GPT, local models (LLaMA, Mistral, etc.), or any pluggable LLM-compatible interface
-- AI used for:
-
-    - Interpreting natural language
-    - Generating shell commands or code
-    - Summarizing or translating developer activity
-
-## 🚀 Getting Started
-
-To begin development:
-
-```bash
-git clone https://github.com/your-org/ai-dev-assistant.git
-cd ai-dev-assistant
+```
+├── server/                 # Node.js backend server
+│   └── index.js           # Express server with WebSocket support
+├── src/                   # React frontend source
+│   ├── components/        # React components
+│   │   ├── Login.tsx      # Authentication component
+│   │   ├── Terminal.tsx   # Terminal component
+│   │   ├── AIAssistant.tsx # AI assistant panel
+│   │   └── ConfigModal.tsx # Configuration modal
+│   ├── hooks/             # Custom React hooks
+│   │   ├── useAuth.ts     # Authentication hook
+│   │   └── useTerminal.ts # Terminal management hook
+│   ├── services/          # Business logic services
+│   │   ├── authService.ts # Authentication service
+│   │   └── terminalService.ts # Terminal communication service
+│   ├── styles/            # CSS stylesheets
+│   │   ├── main.css       # Main application styles
+│   │   └── ai-assistant.css # AI assistant styles
+│   ├── types/             # TypeScript type definitions
+│   │   └── index.ts       # Application types
+│   ├── App.tsx            # Main React application
+│   └── main.tsx           # Application entry point
+├── dist/                  # Built React application (generated)
+├── package.json           # Dependencies and scripts
+├── tsconfig.json          # TypeScript configuration
+├── vite.config.ts         # Vite build configuration
+└── .env                   # Environment variables
 ```
 
-### Web-Based Terminal Tool
+## Development
 
-Install dependencies and start the web server:
+### Prerequisites
+
+- Node.js 16 or higher
+- npm or yarn
+
+### Installation
 
 ```bash
+# Install dependencies
 npm install
-npm start
 ```
 
-Open `http://localhost:3000` in your browser and connect to a remote host using the provided form. Credentials can also be supplied via `SSH_HOST`, `SSH_USER` and `SSH_PASS` environment variables.
+### Environment Configuration
 
-## 🧩 Future Ideas
+Create a `.env` file in the root directory:
 
-- VS Code plugin version
-- GUI-based shell/IDE assistant (Electron + xterm.js + Monaco)
-- Voice-controlled assistant
-- Auto-save, annotate & replay sessions
-- Contextual understanding of file trees or project structure
-- Offline LLM integration
+```env
+VITE_SSH_HOST=your-server-host
+VITE_SSH_USER=your-username
+VITE_SSH_PASS=your-password
+VITE_SSH_PORT=22
+```
 
-Built with ♥ for developers who want smarter tools.
+### Development Server
+
+Run both the frontend and backend in development mode:
+
+```bash
+# Start both client and server in parallel
+npm run dev
+
+# Or start them separately:
+npm run client  # React dev server (localhost:5173)
+npm run server  # Node.js server (localhost:3000)
+```
+
+### Production Build
+
+```bash
+# Build the React application
+npm run build
+
+# Start the production server
+npm run server
+```
+
+## Usage
+
+1. **Authentication**: Enter your application password to access the terminal
+2. **SSH Connection**: The terminal automatically connects using configured credentials
+3. **AI Assistant**: Press `Cmd+I` (or `Ctrl+I`) to open the AI assistant
+4. **Command Execution**: Use prefixes like `/cmd`, `/command`, `/exec`, or `/run` in the AI chat to execute terminal commands
+5. **Configuration**: Click the gear icon in the AI assistant to configure settings
+
+## Technology Stack
+
+### Frontend
+
+- **React 18**: Modern React with hooks and functional components
+- **TypeScript**: Type-safe JavaScript with strict typing
+- **Vite**: Fast build tool and development server
+- **XTerm.js**: Full-featured terminal emulator for the web
+- **CSS3**: Custom stylesheets with modern CSS features
+
+### Backend
+
+- **Node.js**: JavaScript runtime for the server
+- **Express.js**: Web application framework
+- **WebSocket**: Real-time bidirectional communication
+- **SSH2**: SSH client for Node.js
+- **UUID**: Session ID generation
+
+## API Endpoints
+
+- `POST /auth/login` - User authentication
+- `POST /auth/logout` - User logout
+- `GET /auth/check` - Check authentication status
+- `POST /sessions/terminate` - Terminate SSH session
+- `POST /api/command-log` - Log terminal commands
+- `WS /terminal` - WebSocket connection for terminal communication
+
+## Configuration
+
+### Server Configuration
+
+Set environment variables for the Node.js server:
+
+- `APP_PASSWORD` - Application authentication password
+- `SESSION_TIMEOUT_MIN` - Session timeout in minutes (default: 30)
+- `PORT` - Server port (default: 3000)
+
+### Client Configuration
+
+Configure via the `.env` file or the in-app configuration modal:
+
+- SSH connection details
+- AI assistant settings
+- Theme preferences
+
+## Security
+
+- Password-based authentication for web access
+- SSH credentials are handled server-side
+- Session management with automatic cleanup
+- HTTPS recommended for production deployment
+
+## Contributing
+
+1. Follow the existing TypeScript and React patterns
+2. Use descriptive variable and function names
+3. Add comments for complex logic
+4. Keep functions small and focused
+5. Run `npm run format` before committing
+6. Ensure all TypeScript errors are resolved
+
+## Scripts
+
+- `npm run dev` - Start development servers
+- `npm run build` - Build for production
+- `npm run client` - Start React development server
+- `npm run server` - Start Node.js server
+- `npm run format` - Format code with Prettier
+- `npm run format:check` - Check code formatting

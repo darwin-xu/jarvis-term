@@ -15,7 +15,23 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cookieParser());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+
+// Serve static files from the React app build directory
+app.use(express.static(path.join(__dirname, '..', 'dist')));
+
+// Catch all handler: send back React's index.html file for any non-API routes
+app.get('*', (req, res) => {
+    // Skip API routes, auth routes, sessions routes, and WebSocket routes
+    if (
+        req.path.startsWith('/api/') ||
+        req.path.startsWith('/auth/') ||
+        req.path.startsWith('/sessions/') ||
+        req.path.startsWith('/terminal')
+    ) {
+        return res.status(404).json({ error: 'Not found' });
+    }
+    res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
+});
 
 const sessions = new Map();
 
