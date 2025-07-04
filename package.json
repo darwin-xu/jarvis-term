@@ -4,6 +4,7 @@
     "main": "index.js",
     "scripts": {
         "start": "node index.js",
+        "build": "esbuild src/index.tsx --bundle --outfile=public/bundle.js --loader:.ts=ts --loader:.tsx=tsx --format=esm --platform=browser --external:xterm --external:xterm-addon-fit",
         "test": "echo \"No tests specified\"",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
@@ -12,10 +13,16 @@
         "cookie-parser": "^1.4.7",
         "express": "^4.18.2",
         "express-ws": "^5.0.2",
+        "react": "^19.1.0",
+        "react-dom": "^19.1.0",
         "ssh2": "^1.11.0",
         "uuid": "^11.1.0"
     },
     "devDependencies": {
-        "prettier": "^3.5.3"
+        "@types/react": "^19.1.8",
+        "@types/react-dom": "^19.1.6",
+        "esbuild": "^0.25.5",
+        "prettier": "^3.5.3",
+        "typescript": "^5.8.3"
     }
 }
