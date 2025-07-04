@@ -1,4 +1,32 @@
+# Dependency directories
 node_modules/
+jspm_packages/
+bower_components/
+
+# Build output
+dist/
+build/
+coverage/
+
+# Environment/config
 .env
 
+# Editor/IDE files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# OS/system files
 .DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+
+# Logs and temp files
+*.log
+*.bak
+*.swp
+*.tmp
+*.orig
+*.rej
