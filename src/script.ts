@@ -1,25 +1,74 @@
-let term;
-let fitAddon;
-let socket;
+// Client-side TypeScript interfaces
+interface Terminal {
+    open(element: HTMLElement): void;
+    focus(): void;
+    write(data: string): void;
+    loadAddon(addon: any): void;
+    onData(callback: (data: string) => void): { dispose(): void };
+    onFocus(callback: () => void): void;
+    onBlur(callback: () => void): void;
+    cols: number;
+    rows: number;
+}
+
+interface FitAddon {
+    fit(): void;
+}
+
+interface TerminalConstructor {
+    new (options: any): Terminal;
+}
+
+interface FitAddonConstructor {
+    new (): FitAddon;
+}
+
+interface WindowWithTerminal extends Window {
+    Terminal: TerminalConstructor;
+    FitAddon: { FitAddon: FitAddonConstructor };
+    dataDisposable?: { dispose(): void };
+}
+
+declare const customWindow: WindowWithTerminal;
+
+interface CommandLogEntry {
+    command: string;
+    output: string;
+    timestamp: string;
+    executionTime: number;
+    isTimeout?: boolean;
+}
+
+interface AIMessage {
+    content: string;
+    isUser: boolean;
+    messageType: string;
+    timestamp: number;
+}
+
+let term: Terminal;
+let fitAddon: FitAddon;
+let socket: WebSocket;
 let isConnected = false;
-let reconnectTimeout;
+let reconnectTimeout: number | undefined;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 let waitingForKey = false;
 let manualClose = false;
-let pingTimer;
+let pingTimer: number | undefined;
 let bufferIndex = 0;
 const PING_INTERVAL = 15000;
 
-function log(...args) {
+function log(...args: any[]): void {
     console.log(new Date().toISOString(), ...args);
 }
 
-function showConnectForm() {
-    document.getElementById('connect-form').style.display = 'flex';
+function showConnectForm(): void {
+    const form = document.getElementById('connect-form') as HTMLElement;
+    form.style.display = 'flex';
 }
 
-function scheduleReconnect() {
+function scheduleReconnect(): void {
     const stored = localStorage.getItem('sessionId');
     if (!stored) {
         showConnectForm();
@@ -33,7 +82,7 @@ function scheduleReconnect() {
     const delay = Math.min(15000, 1000 * Math.pow(2, reconnectAttempts));
     log(`Scheduling reconnect attempt ${reconnectAttempts + 1} in ${delay}ms`);
     updateStatus(`Reconnecting in ${Math.round(delay / 1000)}s...`, true);
-    reconnectTimeout = setTimeout(() => {
+    reconnectTimeout = (window as any).setTimeout(() => {
         reconnectAttempts++;
         startConnection(
             `sessionId=${encodeURIComponent(stored)}&since=${bufferIndex}`
@@ -41,7 +90,7 @@ function scheduleReconnect() {
     }, delay);
 }
 
-function handleKeyRetry() {
+function handleKeyRetry(): void {
     if (!waitingForKey) {
         return;
     }
@@ -56,16 +105,16 @@ function handleKeyRetry() {
     }
 }
 
-function clearReconnect() {
+function clearReconnect(): void {
     if (reconnectTimeout) {
         clearTimeout(reconnectTimeout);
-        reconnectTimeout = null;
+        reconnectTimeout = undefined;
         reconnectAttempts = 0;
         waitingForKey = false;
     }
 }
 
-function terminateSession() {
+function terminateSession(): void {
     const stored = localStorage.getItem('sessionId');
     if (!stored) {
         return;
@@ -79,39 +128,44 @@ function terminateSession() {
     localStorage.removeItem('sessionId');
 }
 
-async function checkAuth() {
+async function checkAuth(): Promise<boolean> {
     const res = await fetch('/auth/check', {
         credentials: 'include',
     });
-    const data = await res.json();
+    const data = (await res.json()) as { authenticated: boolean };
     return data.authenticated;
 }
 
-async function requireAuth() {
+async function requireAuth(): Promise<boolean> {
     const ok = await checkAuth();
-    const overlay = document.getElementById('login-overlay');
+    const overlay = document.getElementById('login-overlay') as HTMLElement;
     overlay.style.display = ok ? 'none' : 'flex';
     return ok;
 }
 
-document.getElementById('login-form').addEventListener('submit', async e => {
-    e.preventDefault();
-    const pw = document.getElementById('server-pass').value;
-    const resp = await fetch('/auth/login', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pw }),
+document
+    .getElementById('login-form')!
+    .addEventListener('submit', async (e: Event) => {
+        e.preventDefault();
+        const pw = (document.getElementById('server-pass') as HTMLInputElement)
+            .value;
+        const resp = await fetch('/auth/login', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: pw }),
+        });
+        if (resp.ok) {
+            (
+                document.getElementById('login-overlay') as HTMLElement
+            ).style.display = 'none';
+        } else {
+            alert('Invalid password');
+        }
     });
-    if (resp.ok) {
-        document.getElementById('login-overlay').style.display = 'none';
-    } else {
-        alert('Invalid password');
-    }
-});
 
 // Function to resize terminal to fit container
-function resizeTerminal() {
+function resizeTerminal(): void {
     if (term && fitAddon) {
         try {
             fitAddon.fit();
@@ -135,16 +189,16 @@ function resizeTerminal() {
 }
 
 // Debounce resize function to avoid excessive calls
-let resizeTimeout;
-function debouncedResize() {
+let resizeTimeout: number | undefined;
+function debouncedResize(): void {
     clearTimeout(resizeTimeout);
-    resizeTimeout = setTimeout(resizeTerminal, 100);
+    resizeTimeout = (window as any).setTimeout(resizeTerminal, 100);
 }
 
 // Function to initialize terminal with proper sizing
-function initializeTerminal() {
+function initializeTerminal(): void {
     // Initialize terminal with responsive options
-    term = new Terminal({
+    term = new (window as any).Terminal({
         cursorBlink: true,
         fontSize: 14,
         fontFamily: 'Menlo, Monaco, "Courier New", monospace',
@@ -157,17 +211,17 @@ function initializeTerminal() {
     });
 
     // Fit addon for automatic resizing
-    fitAddon = new FitAddon.FitAddon();
+    fitAddon = new (window as any).FitAddon.FitAddon();
     term.loadAddon(fitAddon);
 
-    const terminalElement = document.getElementById('terminal');
+    const terminalElement = document.getElementById('terminal')!;
     term.open(terminalElement);
 
     // Wait for the DOM to be fully rendered and CSS applied
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
             // Check if container has proper dimensions
-            const container = document.getElementById('terminal-container');
+            const container = document.getElementById('terminal-container')!;
             log(
                 `Container dimensions: ${container.offsetWidth}x${container.offsetHeight}`
             );
@@ -190,13 +244,15 @@ function initializeTerminal() {
 
     // Handle terminal focus/blur for better UX
     term.onFocus(() => {
-        document.getElementById('terminal-container').style.borderColor =
-            '#007acc';
+        (
+            document.getElementById('terminal-container') as HTMLElement
+        ).style.borderColor = '#007acc';
     });
 
     term.onBlur(() => {
-        document.getElementById('terminal-container').style.borderColor =
-            'transparent';
+        (
+            document.getElementById('terminal-container') as HTMLElement
+        ).style.borderColor = 'transparent';
     });
 
     // Focus terminal
@@ -210,8 +266,8 @@ if (document.readyState === 'loading') {
     initializeTerminal();
 }
 
-function updateStatus(message, isError = false) {
-    const status = document.getElementById('status');
+function updateStatus(message: string, isError = false): void {
+    const status = document.getElementById('status') as HTMLElement;
     status.textContent = message;
     status.style.display = 'block';
     status.style.color = isError ? '#ff6b6b' : '#00ff00';
@@ -223,7 +279,7 @@ function updateStatus(message, isError = false) {
     }
 }
 
-function startConnection(query) {
+function startConnection(query: string): void {
     const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     manualClose = false;
     clearReconnect();
@@ -235,9 +291,10 @@ function startConnection(query) {
         isConnected = true;
         log('WebSocket opened');
         updateStatus('SSH connecting...');
-        document.getElementById('connect-form').style.display = 'none';
+        (document.getElementById('connect-form') as HTMLElement).style.display =
+            'none';
         clearReconnect();
-        pingTimer = setInterval(() => {
+        pingTimer = (window as any).setInterval(() => {
             if (socket && socket.readyState === WebSocket.OPEN) {
                 log('Sending ping');
                 socket.send(JSON.stringify({ type: 'ping' }));
@@ -245,7 +302,7 @@ function startConnection(query) {
         }, PING_INTERVAL);
     };
 
-    socket.onmessage = e => {
+    socket.onmessage = (e: MessageEvent) => {
         try {
             const data = JSON.parse(e.data);
             if (data.type === 'ping') {
@@ -298,15 +355,13 @@ function startConnection(query) {
         } catch {
             // Capture output for command execution
             captureTerminalOutput(e.data);
-
             console.log('Received data------:', e.data);
-
             term.write(e.data);
             bufferIndex++;
         }
     };
 
-    socket.onclose = event => {
+    socket.onclose = (event: CloseEvent) => {
         isConnected = false;
         clearInterval(pingTimer);
         log('WebSocket closed', event);
@@ -337,10 +392,10 @@ function startConnection(query) {
         }
     };
 
-    if (window.dataDisposable) {
-        window.dataDisposable.dispose();
+    if ((window as any).dataDisposable) {
+        (window as any).dataDisposable.dispose();
     }
-    window.dataDisposable = term.onData(data => {
+    (window as any).dataDisposable = term.onData((data: string) => {
         handleKeyRetry();
         if (socket && socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({ type: 'data', data }));
@@ -348,37 +403,44 @@ function startConnection(query) {
     });
 }
 
-document.getElementById('connect-form').addEventListener('submit', async e => {
-    e.preventDefault();
+document
+    .getElementById('connect-form')!
+    .addEventListener('submit', async (e: Event) => {
+        e.preventDefault();
 
-    if (!(await requireAuth())) {
-        return;
-    }
+        if (!(await requireAuth())) {
+            return;
+        }
 
-    if (socket) {
-        manualClose = true;
-        clearReconnect();
-        clearInterval(pingTimer);
-        log('Closing existing WebSocket');
-        socket.close();
-        terminateSession();
-    }
+        if (socket) {
+            manualClose = true;
+            clearReconnect();
+            clearInterval(pingTimer);
+            log('Closing existing WebSocket');
+            socket.close();
+            terminateSession();
+        }
 
-    const host = document.getElementById('host').value.trim();
-    const user = document.getElementById('user').value.trim();
-    const pass = document.getElementById('pass').value;
+        const host = (
+            document.getElementById('host') as HTMLInputElement
+        ).value.trim();
+        const user = (
+            document.getElementById('user') as HTMLInputElement
+        ).value.trim();
+        const pass = (document.getElementById('pass') as HTMLInputElement)
+            .value;
 
-    if (!host || !user || !pass) {
-        updateStatus('Please fill in all fields', true);
-        return;
-    }
+        if (!host || !user || !pass) {
+            updateStatus('Please fill in all fields', true);
+            return;
+        }
 
-    updateStatus('Connecting...');
-    log(`Connecting to ${host} as ${user}`);
-    bufferIndex = 0;
-    const query = `host=${encodeURIComponent(host)}&user=${encodeURIComponent(user)}&pass=${encodeURIComponent(pass)}`;
-    startConnection(query);
-});
+        updateStatus('Connecting...');
+        log(`Connecting to ${host} as ${user}`);
+        bufferIndex = 0;
+        const query = `host=${encodeURIComponent(host)}&user=${encodeURIComponent(user)}&pass=${encodeURIComponent(pass)}`;
+        startConnection(query);
+    });
 
 (async () => {
     if (await requireAuth()) {
@@ -401,55 +463,53 @@ window.addEventListener('keydown', handleKeyRetry);
 
 // AI Assistant functionality
 let aiAssistantOpen = false;
-let aiMessages = [];
+let aiMessages: AIMessage[] = [];
 let currentLLMProvider = 'openai'; // default
 let customApiUrl = '';
-let commandOutputLog = []; // Store command outputs for AI context
+let commandOutputLog: CommandLogEntry[] = []; // Store command outputs for AI context
 let isExecutingCommand = false;
 let commandOutputBuffer = '';
-let commandStartTime = null;
-let currentExecutingCommand = null; // Track currently executing command
+let commandStartTime: number | null = null;
+let currentExecutingCommand: string | null = null; // Track currently executing command
 
 // Config modal functions
-function openConfigModal() {
-    const overlay = document.getElementById('config-overlay');
+function openConfigModal(): void {
+    const overlay = document.getElementById('config-overlay') as HTMLElement;
     overlay.style.display = 'flex';
-
-    // Load current settings
     loadConfigSettings();
 }
 
-function closeConfigModal() {
-    const overlay = document.getElementById('config-overlay');
+function closeConfigModal(): void {
+    const overlay = document.getElementById('config-overlay') as HTMLElement;
     overlay.style.display = 'none';
 }
 
-function loadConfigSettings() {
-    // Load from localStorage
+function loadConfigSettings(): void {
     const savedProvider = localStorage.getItem('llm-provider') || 'openai';
     const savedCustomUrl = localStorage.getItem('custom-api-url') || '';
 
     currentLLMProvider = savedProvider;
     customApiUrl = savedCustomUrl;
 
-    // Update UI
     const radioButton = document.querySelector(
         `input[name="llm-provider"][value="${savedProvider}"]`
-    );
+    ) as HTMLInputElement;
     if (radioButton) {
         radioButton.checked = true;
         updateLLMOptionSelection(savedProvider);
     }
 
-    const customUrlInput = document.getElementById('custom-url-input');
+    const customUrlInput = document.getElementById(
+        'custom-url-input'
+    ) as HTMLInputElement;
     customUrlInput.value = savedCustomUrl;
     customUrlInput.disabled = savedProvider !== 'custom';
 }
 
-function selectLLMProvider(provider) {
+function selectLLMProvider(provider: string): void {
     const radioButton = document.querySelector(
         `input[name="llm-provider"][value="${provider}"]`
-    );
+    ) as HTMLInputElement;
     if (radioButton) {
         radioButton.checked = true;
     }
@@ -458,22 +518,21 @@ function selectLLMProvider(provider) {
     currentLLMProvider = provider;
 }
 
-function updateLLMOptionSelection(provider) {
-    // Remove selected class from all options
+function updateLLMOptionSelection(provider: string): void {
     document.querySelectorAll('.llm-option').forEach(option => {
         option.classList.remove('selected');
     });
 
-    // Add selected class to current option
     const selectedOption = document
-        .querySelector(`input[name="llm-provider"][value="${provider}"]`)
-        .closest('.llm-option');
+        .querySelector(`input[name="llm-provider"][value="${provider}"]`)!
+        .closest('.llm-option') as HTMLElement;
     if (selectedOption) {
         selectedOption.classList.add('selected');
     }
 
-    // Enable/disable custom URL input
-    const customUrlInput = document.getElementById('custom-url-input');
+    const customUrlInput = document.getElementById(
+        'custom-url-input'
+    ) as HTMLInputElement;
     customUrlInput.disabled = provider !== 'custom';
 
     if (provider === 'custom') {
@@ -481,52 +540,54 @@ function updateLLMOptionSelection(provider) {
     }
 }
 
-function saveConfig() {
+function saveConfig(): void {
     const selectedProvider =
-        document.querySelector('input[name="llm-provider"]:checked')?.value ||
-        'openai';
-    const customUrl = document.getElementById('custom-url-input').value.trim();
+        (
+            document.querySelector(
+                'input[name="llm-provider"]:checked'
+            ) as HTMLInputElement
+        )?.value || 'openai';
+    const customUrl = (
+        document.getElementById('custom-url-input') as HTMLInputElement
+    ).value.trim();
 
-    // Validate custom URL if selected
     if (selectedProvider === 'custom' && !customUrl) {
         alert('Please enter a custom API URL');
         return;
     }
 
-    // Save to localStorage
     localStorage.setItem('llm-provider', selectedProvider);
     localStorage.setItem('custom-api-url', customUrl);
 
-    // Update current settings
     currentLLMProvider = selectedProvider;
     customApiUrl = customUrl;
 
     closeConfigModal();
 
-    // Show confirmation
     addAIMessage(
         `Configuration updated! Using ${selectedProvider === 'custom' ? 'custom API' : selectedProvider} provider.`,
         false
     );
 }
 
-// Close modal when clicking outside
-document.getElementById('config-overlay').addEventListener('click', e => {
-    if (e.target.id === 'config-overlay') {
-        closeConfigModal();
-    }
-});
+document
+    .getElementById('config-overlay')!
+    .addEventListener('click', (e: Event) => {
+        if ((e.target as HTMLElement).id === 'config-overlay') {
+            closeConfigModal();
+        }
+    });
 
-// Handle Enter key in custom URL input
-document.getElementById('custom-url-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        saveConfig();
-    }
-});
+document
+    .getElementById('custom-url-input')!
+    .addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            saveConfig();
+        }
+    });
 
-// Command execution functionality
-function executeCommand(command) {
+function executeCommand(command: string): void {
     if (!socket || socket.readyState !== WebSocket.OPEN || !isConnected) {
         addAIMessage(
             '❌ Error: Terminal not connected. Please connect to SSH first.',
@@ -545,20 +606,16 @@ function executeCommand(command) {
         return;
     }
 
-    // Reset command state
     isExecutingCommand = true;
     commandOutputBuffer = '';
     commandStartTime = Date.now();
-    currentExecutingCommand = command; // Track the current command
+    currentExecutingCommand = command;
 
-    // Add command to AI chat
     addAIMessage(`🔧 Executing: ${command}`, false, 'command');
 
-    // Send command to terminal
     const commandToSend = command.trim() + '\n';
     socket.send(JSON.stringify({ type: 'data', data: commandToSend }));
 
-    // Set a timeout to stop capturing output after 10 seconds
     setTimeout(() => {
         if (isExecutingCommand) {
             finishCommandExecution(currentExecutingCommand || command, true);
@@ -566,7 +623,7 @@ function executeCommand(command) {
     }, 10000);
 }
 
-function finishCommandExecution(command, isTimeout = false) {
+function finishCommandExecution(command: string, isTimeout = false): void {
     if (!isExecutingCommand) {
         console.log(
             'finishCommandExecution called but no command is executing'
@@ -577,22 +634,20 @@ function finishCommandExecution(command, isTimeout = false) {
     console.log('Finishing command execution', {
         command,
         isTimeout,
-        executionTime: Date.now() - commandStartTime,
+        executionTime: Date.now() - (commandStartTime || 0),
     });
 
     isExecutingCommand = false;
-    currentExecutingCommand = null; // Clear the tracked command
-    const executionTime = Date.now() - commandStartTime;
+    currentExecutingCommand = null;
+    const executionTime = Date.now() - (commandStartTime || 0);
 
-    // Clean up the output buffer
     let cleanOutput = commandOutputBuffer
-        .replace(/\x1b\[[0-9;]*m/g, '') // Remove ANSI color codes
+        .replace(/\x1b\[[0-9;]*m/g, '')
         .replace(/\r\n/g, '\n')
         .replace(/\r/g, '\n')
         .trim();
 
-    // Log command and output
-    const logEntry = {
+    const logEntry: CommandLogEntry = {
         command: command,
         output: cleanOutput,
         timestamp: new Date().toISOString(),
@@ -601,25 +656,21 @@ function finishCommandExecution(command, isTimeout = false) {
     };
     commandOutputLog.push(logEntry);
 
-    // Keep only last 50 commands in memory
     if (commandOutputLog.length > 50) {
         commandOutputLog.shift();
     }
 
-    // Save to localStorage for persistence
     try {
         localStorage.setItem(
             'command-output-log',
             JSON.stringify(commandOutputLog.slice(-20))
-        ); // Keep last 20 in storage
+        );
     } catch (e) {
         console.warn('Failed to save command log to localStorage:', e);
     }
 
-    // Also save to server
     saveCommandToServer(logEntry);
 
-    // Display result in AI chat
     if (isTimeout) {
         addAIMessage(
             '⏰ Command execution timeout (10s). Output captured so far:',
@@ -640,53 +691,45 @@ function finishCommandExecution(command, isTimeout = false) {
         addAIMessage('📄 No output captured', false, 'command');
     }
 
-    // Reset buffer
     commandOutputBuffer = '';
 }
 
-function captureTerminalOutput(data) {
+function captureTerminalOutput(data: string): void {
     if (isExecutingCommand) {
         commandOutputBuffer += data;
 
-        // Enhanced prompt detection - look for common shell prompt patterns
-        // Match patterns that typically indicate end of command execution
         const promptPatterns = [
-            /\$ $/m, // Standard shell prompt ending with $
-            /# $/m, // Root shell prompt ending with #
-            /> $/m, // Some shell prompts ending with >
-            /\] $/m, // Prompts ending with ]
-            /% $/m, // Zsh default prompt ending with %
-            /➜ /m, // Oh-my-zsh arrow prompt
-            /❯ /m, // Some modern shell prompts
-            /\$\s*$/m, // $ followed by optional whitespace at end
-            /#\s*$/m, // # followed by optional whitespace at end
-            /bash-[\d\.]+-\$ $/m, // bash version prompts
-            /zsh-[\d\.]+-% $/m, // zsh version prompts
+            /\$ $/m,
+            /# $/m,
+            /> $/m,
+            /\] $/m,
+            /% $/m,
+            /➜ /m,
+            /❯ /m,
+            /\$\s*$/m,
+            /#\s*$/m,
+            /bash-[\d\.]+-\$ $/m,
+            /zsh-[\d\.]+-% $/m,
         ];
 
-        // Check for prompt patterns
         const hasPrompt = promptPatterns.some(pattern => pattern.test(data));
 
         if (hasPrompt) {
             console.log('Command prompt detected, finishing execution...', {
                 command: currentExecutingCommand,
-                elapsed: Date.now() - commandStartTime,
-                dataSnippet: data.slice(-50), // Show last 50 chars
+                elapsed: Date.now() - (commandStartTime || 0),
+                dataSnippet: data.slice(-50),
             });
 
-            // Shorter delay and remove arbitrary time requirement
             setTimeout(() => {
                 if (isExecutingCommand) {
-                    // Use the tracked command, or try to extract from buffer
                     let currentCommand = currentExecutingCommand || 'unknown';
 
-                    // If we don't have a tracked command, try to extract from buffer
                     if (!currentExecutingCommand) {
                         const lines = commandOutputBuffer.split('\n');
                         for (let i = 0; i < lines.length; i++) {
                             const line = lines[i].trim();
                             if (line && !line.match(/^\s*[\$#%➜❯>]/)) {
-                                // Skip prompt lines, take first non-prompt line as potential command
                                 const commandMatch = line.match(/^\s*([^\s]+)/);
                                 if (commandMatch) {
                                     currentCommand = commandMatch[1];
@@ -696,9 +739,8 @@ function captureTerminalOutput(data) {
                         }
                     }
 
-                    // Ensure minimum execution time of 100ms to avoid false positives
                     const minExecutionTime = 100;
-                    const elapsed = Date.now() - commandStartTime;
+                    const elapsed = Date.now() - (commandStartTime || 0);
 
                     console.log('About to finish command execution', {
                         command: currentCommand,
@@ -710,7 +752,6 @@ function captureTerminalOutput(data) {
                     if (elapsed >= minExecutionTime) {
                         finishCommandExecution(currentCommand);
                     } else {
-                        // Wait a bit more if command executed too quickly
                         setTimeout(() => {
                             if (isExecutingCommand) {
                                 console.log('Finishing command after delay');
@@ -719,13 +760,12 @@ function captureTerminalOutput(data) {
                         }, minExecutionTime - elapsed);
                     }
                 }
-            }, 100); // Reduced delay from 200ms to 100ms
+            }, 100);
         }
     }
 }
 
-function parseCommand(message) {
-    // Check if message starts with command prefixes
+function parseCommand(message: string): string | null {
     const commandPrefixes = ['/cmd', '/command', '/exec', '/run'];
     const lowercaseMessage = message.toLowerCase().trim();
 
@@ -738,7 +778,7 @@ function parseCommand(message) {
     return null;
 }
 
-function loadCommandHistory() {
+function loadCommandHistory(): void {
     try {
         const saved = localStorage.getItem('command-output-log');
         if (saved) {
@@ -750,7 +790,7 @@ function loadCommandHistory() {
     }
 }
 
-async function saveCommandToServer(logEntry) {
+async function saveCommandToServer(logEntry: CommandLogEntry): Promise<void> {
     try {
         const sessionId = localStorage.getItem('sessionId') || 'unknown';
         const response = await fetch('/api/command-log', {
@@ -776,11 +816,16 @@ async function saveCommandToServer(logEntry) {
     }
 }
 
-function getCommandHistory() {
-    return commandOutputLog.slice(); // Return a copy
+function getCommandHistory(): CommandLogEntry[] {
+    return commandOutputLog.slice();
 }
 
-function getRecentCommandContext(limit = 5) {
+function getRecentCommandContext(limit = 5): Array<{
+    command: string;
+    output: string;
+    timestamp: string;
+    success: boolean;
+}> {
     const recent = commandOutputLog.slice(-limit);
     return recent.map(entry => ({
         command: entry.command,
@@ -792,7 +837,7 @@ function getRecentCommandContext(limit = 5) {
     }));
 }
 
-function formatCommandContextForAI() {
+function formatCommandContextForAI(): string {
     const context = getRecentCommandContext();
     if (context.length === 0) {
         return 'No recent commands executed.';
@@ -809,34 +854,31 @@ function formatCommandContextForAI() {
     );
 }
 
-// Load command history on page load
 loadCommandHistory();
 
-function toggleAIAssistant() {
-    const pane = document.getElementById('ai-assistant-pane');
-    const hint = document.getElementById('ai-toggle-hint');
+function toggleAIAssistant(): void {
+    const pane = document.getElementById('ai-assistant-pane') as HTMLElement;
+    const hint = document.getElementById('ai-toggle-hint') as HTMLElement;
 
     aiAssistantOpen = !aiAssistantOpen;
 
     if (aiAssistantOpen) {
         pane.classList.add('open');
         hint.classList.remove('show');
-        // Focus on the AI input when opening
         setTimeout(() => {
-            document.getElementById('ai-input').focus();
+            (document.getElementById('ai-input') as HTMLInputElement).focus();
         }, 300);
     } else {
         pane.classList.remove('open');
-        // Return focus to terminal when closing
         if (term) {
             term.focus();
         }
     }
 }
 
-function showAIToggleHint() {
+function showAIToggleHint(): void {
     if (!aiAssistantOpen) {
-        const hint = document.getElementById('ai-toggle-hint');
+        const hint = document.getElementById('ai-toggle-hint') as HTMLElement;
         hint.classList.add('show');
         setTimeout(() => {
             hint.classList.remove('show');
@@ -844,13 +886,18 @@ function showAIToggleHint() {
     }
 }
 
-function addAIMessage(content, isUser = false, messageType = 'normal') {
-    const messagesContainer = document.getElementById('ai-chat-messages');
+function addAIMessage(
+    content: string,
+    isUser = false,
+    messageType = 'normal'
+): void {
+    const messagesContainer = document.getElementById(
+        'ai-chat-messages'
+    ) as HTMLElement;
     const messageDiv = document.createElement('div');
 
     let className = `ai-message ${isUser ? 'user' : 'assistant'}`;
 
-    // Apply special styling for different message types
     if (!isUser) {
         if (messageType === 'command') {
             className = 'ai-message command';
@@ -865,10 +912,8 @@ function addAIMessage(content, isUser = false, messageType = 'normal') {
     messageDiv.textContent = content;
     messagesContainer.appendChild(messageDiv);
 
-    // Scroll to bottom
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-    // Store message
     aiMessages.push({
         content,
         isUser,
@@ -877,31 +922,25 @@ function addAIMessage(content, isUser = false, messageType = 'normal') {
     });
 }
 
-function sendAIMessage() {
-    const input = document.getElementById('ai-input');
-    const sendBtn = document.getElementById('ai-send-btn');
+function sendAIMessage(): void {
+    const input = document.getElementById('ai-input') as HTMLTextAreaElement;
+    const sendBtn = document.getElementById('ai-send-btn') as HTMLButtonElement;
     const message = input.value.trim();
 
     if (!message) return;
 
-    // Add user message
     addAIMessage(message, true);
-
-    // Clear input
     input.value = '';
 
-    // Check if this is a command
     const command = parseCommand(message);
     if (command) {
         executeCommand(command);
         return;
     }
 
-    // Regular AI message handling
     sendBtn.disabled = true;
     sendBtn.textContent = 'Sending...';
 
-    // Simulate AI response (placeholder for now)
     setTimeout(() => {
         const helpText = `I'm a placeholder AI response. To execute commands, use one of these prefixes:
 • /cmd <command> - Execute a terminal command
@@ -917,27 +956,27 @@ Example: /cmd ls -la`;
     }, 1000);
 }
 
-// Handle Cmd+I keyboard shortcut
-document.addEventListener('keydown', e => {
+document.addEventListener('keydown', (e: KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
         e.preventDefault();
         toggleAIAssistant();
     }
 });
 
-// Handle Enter key in AI input
-document.getElementById('ai-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendAIMessage();
-    }
-});
+document
+    .getElementById('ai-input')!
+    .addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendAIMessage();
+        }
+    });
 
-// Auto-resize textarea
-document.getElementById('ai-input').addEventListener('input', function () {
-    this.style.height = 'auto';
-    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-});
+document
+    .getElementById('ai-input')!
+    .addEventListener('input', function (this: HTMLTextAreaElement) {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
 
-// Show hint on page load
 setTimeout(showAIToggleHint, 2000);

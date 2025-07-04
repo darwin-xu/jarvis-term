@@ -1,9 +1,13 @@
 {
     "name": "ssh-terminal-tool",
     "version": "0.1.0",
-    "main": "index.js",
+    "main": "dist/index.js",
     "scripts": {
-        "start": "node index.js",
+        "build": "npm run build:server && npm run build:client",
+        "build:server": "tsc -p tsconfig.server.json",
+        "build:client": "tsc -p tsconfig.json",
+        "start": "npm run build && node dist/index.js",
+        "dev": "npm run build && node dist/index.js",
         "test": "echo \"No tests specified\"",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
@@ -16,6 +20,14 @@
         "uuid": "^11.1.0"
     },
     "devDependencies": {
-        "prettier": "^3.5.3"
+        "@types/cookie-parser": "^1.4.9",
+        "@types/express": "^5.0.3",
+        "@types/express-ws": "^3.0.5",
+        "@types/node": "^24.0.10",
+        "@types/ssh2": "^1.15.5",
+        "@types/uuid": "^10.0.0",
+        "@types/ws": "^8.18.1",
+        "prettier": "^3.5.3",
+        "typescript": "^5.8.3"
     }
 }

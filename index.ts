@@ -1,29 +1,56 @@
-const express = require('express');
-const expressWs = require('express-ws');
-const cookieParser = require('cookie-parser');
-const { Client } = require('ssh2');
-const { v4: uuidv4 } = require('uuid');
-const path = require('path');
+import express, { Request, Response } from 'express';
+import expressWs from 'express-ws';
+import cookieParser from 'cookie-parser';
+import { Client } from 'ssh2';
+import { v4 as uuidv4 } from 'uuid';
+import path from 'path';
+import fs from 'fs';
+import WebSocket from 'ws';
+
+interface SessionData {
+    id: string;
+    conn: Client;
+    stream: any;
+    buffer: string[];
+    cols: number;
+    rows: number;
+    lastActive: number;
+    host: string;
+    port: number;
+    username: string;
+    onData?: (data: Buffer) => void;
+    ws?: WebSocket & { sentIndex?: number; isAlive?: boolean };
+    sshListenersAdded?: boolean;
+}
+
+interface CommandLogEntry {
+    command: string;
+    output: string;
+    timestamp: string;
+    executionTime: number;
+    sessionId: string;
+}
 
 const APP_PASSWORD = process.env.APP_PASSWORD;
 const SESSION_TIMEOUT_MS =
-    (parseInt(process.env.SESSION_TIMEOUT_MIN, 10) || 30) * 60 * 1000;
+    parseInt(process.env.SESSION_TIMEOUT_MIN || '30', 10) * 60 * 1000;
 
-const app = express();
-expressWs(app);
+const baseApp = express();
+const wsInstance = expressWs(baseApp);
+const app = wsInstance.app;
 const PORT = process.env.PORT || 3000;
 
 app.use(cookieParser());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
-const sessions = new Map();
+const sessions = new Map<string, SessionData>();
 
-function log(...args) {
+function log(...args: any[]): void {
     console.log(new Date().toISOString(), ...args);
 }
 
-function cleanupSessions() {
+function cleanupSessions(): void {
     const now = Date.now();
     for (const [id, session] of sessions) {
         if (now - session.lastActive > SESSION_TIMEOUT_MS) {
@@ -38,7 +65,7 @@ function cleanupSessions() {
 }
 setInterval(cleanupSessions, 60 * 1000);
 
-app.post('/auth/login', (req, res) => {
+app.post('/auth/login', (req: any, res: any) => {
     if (!APP_PASSWORD) {
         return res
             .status(500)
@@ -52,16 +79,16 @@ app.post('/auth/login', (req, res) => {
     }
 });
 
-app.post('/auth/logout', (req, res) => {
+app.post('/auth/logout', (req: any, res: any) => {
     res.clearCookie('auth');
     res.json({ ok: true });
 });
 
-app.get('/auth/check', (req, res) => {
+app.get('/auth/check', (req: any, res: any) => {
     res.json({ authenticated: req.cookies.auth === '1' });
 });
 
-app.post('/sessions/terminate', (req, res) => {
+app.post('/sessions/terminate', (req: any, res: any) => {
     if (req.cookies.auth !== '1') {
         return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -80,7 +107,7 @@ app.post('/sessions/terminate', (req, res) => {
 });
 
 // Add endpoint for saving command output logs
-app.post('/api/command-log', (req, res) => {
+app.post('/api/command-log', (req: any, res: any) => {
     if (req.cookies.auth !== '1') {
         return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -93,7 +120,7 @@ app.post('/api/command-log', (req, res) => {
             return res.status(400).json({ error: 'Command is required' });
         }
 
-        const logEntry = {
+        const logEntry: CommandLogEntry = {
             command,
             output: output || '',
             timestamp: timestamp || new Date().toISOString(),
@@ -101,11 +128,10 @@ app.post('/api/command-log', (req, res) => {
             sessionId: sessionId || 'unknown',
         };
 
-        const fs = require('fs');
         const logFile = path.join(__dirname, 'command-logs.json');
 
         // Read existing logs
-        let logs = [];
+        let logs: CommandLogEntry[] = [];
         try {
             if (fs.existsSync(logFile)) {
                 const data = fs.readFileSync(logFile, 'utf8');
@@ -136,27 +162,31 @@ app.post('/api/command-log', (req, res) => {
 
 const PING_INTERVAL = 15000;
 
-function attachToSession(ws, session, offset = 0) {
+function attachToSession(
+    ws: WebSocket & { sentIndex?: number; isAlive?: boolean },
+    session: SessionData,
+    offset = 0
+): void {
     ws.sentIndex = Math.max(0, offset);
     const sendBuffered = () => {
-        while (ws.sentIndex < session.buffer.length) {
-            ws.send(session.buffer[ws.sentIndex]);
-            ws.sentIndex++;
+        while (ws.sentIndex! < session.buffer.length) {
+            ws.send(session.buffer[ws.sentIndex!]);
+            ws.sentIndex!++;
         }
     };
 
     if (!session.onData) {
-        session.onData = data => {
+        session.onData = (data: Buffer) => {
             const text = data.toString('utf8');
             session.buffer.push(text);
             if (session.buffer.length > 2000) {
                 session.buffer.shift();
-                if (session.ws && session.ws.sentIndex > 0) {
-                    session.ws.sentIndex--;
+                if (session.ws && session.ws.sentIndex! > 0) {
+                    session.ws.sentIndex!--;
                 }
             }
             session.lastActive = Date.now();
-            if (session.ws && session.ws.readyState === session.ws.OPEN) {
+            if (session.ws && session.ws.readyState === 1) {
                 session.ws.send(text);
                 session.ws.sentIndex = session.buffer.length;
             }
@@ -167,11 +197,11 @@ function attachToSession(ws, session, offset = 0) {
 
     session.ws = ws;
     log(
-        `WebSocket attached to session ${session.id} from ${ws._socket.remoteAddress}:${ws._socket.remotePort}`
+        `WebSocket attached to session ${session.id} from ${(ws as any)._socket.remoteAddress}:${(ws as any)._socket.remotePort}`
     );
 
     let closed = false;
-    function handleSshClose(reason) {
+    function handleSshClose(reason: string): void {
         if (closed) return;
         closed = true;
         log(
@@ -180,7 +210,7 @@ function attachToSession(ws, session, offset = 0) {
         clearInterval(pingInterval);
         session.lastActive = Date.now();
         sessions.delete(session.id);
-        if (session.ws && session.ws.readyState === session.ws.OPEN) {
+        if (session.ws && session.ws.readyState === 1) {
             session.ws.send(
                 JSON.stringify({
                     type: 'error',
@@ -193,16 +223,16 @@ function attachToSession(ws, session, offset = 0) {
 
     if (!session.sshListenersAdded) {
         session.stream.on('close', () => handleSshClose('stream close'));
-        session.stream.on('exit', code =>
+        session.stream.on('exit', (code: number) =>
             handleSshClose(`stream exit ${code}`)
         );
         session.stream.on('end', () => handleSshClose('stream end'));
-        session.stream.on('error', err =>
+        session.stream.on('error', (err: Error) =>
             log(`SSH stream error for session ${session.id}:`, err)
         );
         session.conn.on('close', () => handleSshClose('conn close'));
         session.conn.on('end', () => handleSshClose('conn end'));
-        session.conn.on('error', err =>
+        session.conn.on('error', (err: Error) =>
             log(`SSH connection error for session ${session.id}:`, err)
         );
         session.sshListenersAdded = true;
@@ -211,7 +241,7 @@ function attachToSession(ws, session, offset = 0) {
     ws.isAlive = true;
 
     const pingInterval = setInterval(() => {
-        if (ws.readyState !== ws.OPEN) {
+        if (ws.readyState !== 1) {
             clearInterval(pingInterval);
             return;
         }
@@ -231,7 +261,7 @@ function attachToSession(ws, session, offset = 0) {
         }
     }, PING_INTERVAL);
 
-    ws.on('message', msg => {
+    ws.on('message', (msg: string) => {
         try {
             const data = JSON.parse(msg);
             if (data.type === 'pong') {
@@ -255,21 +285,21 @@ function attachToSession(ws, session, offset = 0) {
         }
     });
 
-    ws.on('close', (code, reason) => {
+    ws.on('close', (code: number, reason: Buffer) => {
         log(
             `WebSocket for session ${session.id} closed code=${code} reason=${reason.toString()}`
         );
-        session.ws = null;
+        session.ws = undefined;
         session.lastActive = Date.now();
         clearInterval(pingInterval);
     });
 
-    ws.on('error', err => {
+    ws.on('error', (err: Error) => {
         log(
-            `WebSocket error for session ${session.id} from ${ws._socket.remoteAddress}:${ws._socket.remotePort}:`,
+            `WebSocket error for session ${session.id} from ${(ws as any)._socket.remoteAddress}:${(ws as any)._socket.remotePort}:`,
             err
         );
-        session.ws = null;
+        session.ws = undefined;
         session.lastActive = Date.now();
         clearInterval(pingInterval);
     });
@@ -284,16 +314,16 @@ function attachToSession(ws, session, offset = 0) {
     sendBuffered();
 }
 
-app.ws('/terminal', (ws, req) => {
+app.ws('/terminal', (ws: WebSocket, req: any) => {
     const { sessionId } = req.query;
-    const offset = parseInt(req.query.since, 10) || 0;
+    const offset = parseInt(req.query.since as string, 10) || 0;
     if (sessionId) {
-        if (sessions.has(sessionId)) {
-            const session = sessions.get(sessionId);
+        if (sessions.has(sessionId as string)) {
+            const session = sessions.get(sessionId as string)!;
             log(
                 `WebSocket reconnect from ${req.socket.remoteAddress}:${req.socket.remotePort} for session ${sessionId}`
             );
-            attachToSession(ws, session, offset);
+            attachToSession(ws as any, session, offset);
             return;
         } else {
             ws.send(
@@ -313,10 +343,10 @@ app.ws('/terminal', (ws, req) => {
         return;
     }
 
-    const host = req.query.host || process.env.SSH_HOST;
-    const username = req.query.user || process.env.SSH_USER;
-    const password = req.query.pass || process.env.SSH_PASS;
-    const port = parseInt(req.query.port, 10) || 22;
+    const host = (req.query.host as string) || process.env.SSH_HOST;
+    const username = (req.query.user as string) || process.env.SSH_USER;
+    const password = (req.query.pass as string) || process.env.SSH_PASS;
+    const port = parseInt(req.query.port as string, 10) || 22;
 
     log(
         `WebSocket connection from ${req.socket.remoteAddress}:${req.socket.remotePort} to SSH ${username}@${host}:${port}`
@@ -335,7 +365,7 @@ app.ws('/terminal', (ws, req) => {
 
     const conn = new Client();
     const id = uuidv4();
-    const session = {
+    const session: SessionData = {
         id,
         conn,
         stream: null,
@@ -360,7 +390,7 @@ app.ws('/terminal', (ws, req) => {
                 cols: session.cols,
                 rows: session.rows,
             },
-            (err, stream) => {
+            (err: Error | undefined, stream: any) => {
                 if (err) {
                     ws.send(
                         JSON.stringify({
@@ -374,11 +404,11 @@ app.ws('/terminal', (ws, req) => {
                     return;
                 }
                 session.stream = stream;
-                attachToSession(ws, session);
+                attachToSession(ws as any, session);
             }
         );
     })
-        .on('error', err => {
+        .on('error', (err: Error) => {
             log(
                 `SSH connection error for session ${id} to ${username}@${host}:${port}:`,
                 err

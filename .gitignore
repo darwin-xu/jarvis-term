@@ -30,3 +30,7 @@ Icon?
 *.tmp
 *.orig
 *.rej
+
+# Compiled source files
+public/script.js
+*.js.map
