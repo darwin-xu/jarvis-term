@@ -1,21 +1,27 @@
 {
-    "name": "ssh-terminal-tool",
-    "version": "0.1.0",
-    "main": "index.js",
-    "scripts": {
-        "start": "node index.js",
-        "test": "echo \"No tests specified\"",
-        "format": "prettier --write .",
-        "format:check": "prettier --check ."
-    },
-    "dependencies": {
-        "cookie-parser": "^1.4.7",
-        "express": "^4.18.2",
-        "express-ws": "^5.0.2",
-        "ssh2": "^1.11.0",
-        "uuid": "^11.1.0"
-    },
-    "devDependencies": {
-        "prettier": "^3.5.3"
-    }
+  "name": "ssh-terminal-tool",
+  "version": "0.1.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"No tests specified\"",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "cookie-parser": "^1.4.7",
+    "csstype": "^3.1.3",
+    "express": "^4.18.2",
+    "express-ws": "^5.0.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "ssh2": "^1.11.0",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3"
+  }
 }

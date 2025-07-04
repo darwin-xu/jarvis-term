@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "target": "es2017",
+    "module": "none",
+    "strict": true,
+    "moduleResolution": "node",
+    "jsx": "react",
+    "outFile": "public/app.js"
+  },
+  "include": ["src/**/*"]
+}
