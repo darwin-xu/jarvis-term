@@ -120,7 +120,7 @@ Example: /cmd ls -la`;
         return `ai-message ${message.isUser ? 'user' : 'assistant'}`;
     };
 
-    if (!isOpen) return null;
+    //if (!isOpen) return null;
 
     return (
         <div className={`ai-assistant-pane ${isOpen ? 'open' : ''}`}>
@@ -167,7 +167,7 @@ Example: /cmd ls -la`;
                         value={inputValue}
                         onChange={handleInputChange}
                         onKeyDown={handleKeyDown}
-                        placeholder="Ask me anything or use /cmd to execute commands..."
+                        placeholder="How may I help you..."
                         disabled={isLoading}
                         rows={1}
                     />
