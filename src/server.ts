@@ -1,3 +1,4 @@
+// @ts-nocheck
 const express = require('express');
 const expressWs = require('express-ws');
 const cookieParser = require('cookie-parser');

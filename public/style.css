@@ -1,0 +1,11 @@
+html, body, .container {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+form {
+  padding: 1rem;
+}
+#terminal {
+  height: calc(100% - 100px);
+}
