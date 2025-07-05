@@ -32,6 +32,7 @@ interface CommandLogEntry {
 }
 
 const APP_PASSWORD = process.env.APP_PASSWORD;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const SESSION_TIMEOUT_MS =
     parseInt(process.env.SESSION_TIMEOUT_MIN || '30', 10) * 60 * 1000;
 
@@ -42,7 +43,38 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cookieParser());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '..', 'public')));
+
+// Serve static files except index.html
+app.use(
+    express.static(path.join(__dirname, '..', 'public'), {
+        index: false,
+    })
+);
+
+// Custom route for index.html with injected data
+app.get('/', (req: Request, res: Response) => {
+    const indexPath = path.join(__dirname, '..', 'public', 'index.html');
+
+    try {
+        let html = fs.readFileSync(indexPath, 'utf8');
+
+        // Inject the OPENAI_API_KEY into the HTML
+        const scriptInjection = `
+        <script>
+            window.APP_CONFIG = {
+                OPENAI_API_KEY: ${JSON.stringify(OPENAI_API_KEY || '')}
+            };
+        </script>`;
+
+        // Insert before the closing </head> tag
+        html = html.replace('</head>', `${scriptInjection}\n    </head>`);
+
+        res.send(html);
+    } catch (error) {
+        log('Error serving index.html:', error);
+        res.status(500).send('Error loading page');
+    }
+});
 
 const sessions = new Map<string, SessionData>();
 

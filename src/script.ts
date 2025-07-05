@@ -31,6 +31,11 @@ interface WindowWithTerminal extends Window {
 
 declare const customWindow: WindowWithTerminal;
 
+// Extend window interface to include APP_CONFIG
+interface AppConfig {
+    OPENAI_API_KEY: string;
+}
+
 interface CommandLogEntry {
     command: string;
     output: string;
@@ -305,6 +310,11 @@ function startConnection(query: string): void {
     socket.onmessage = (e: MessageEvent) => {
         try {
             const data = JSON.parse(e.data);
+
+            if (typeof data !== 'object' || data === null || !data.type) {
+                throw new Error('Not a structured control message');
+            }
+
             if (data.type === 'ping') {
                 log('Received ping from server');
                 socket.send(JSON.stringify({ type: 'pong' }));
@@ -355,7 +365,6 @@ function startConnection(query: string): void {
         } catch {
             // Capture output for command execution
             captureTerminalOutput(e.data);
-            console.log('Received data------:', e.data);
             term.write(e.data);
             bufferIndex++;
         }
@@ -587,40 +596,54 @@ document
         }
     });
 
-function executeCommand(command: string): void {
+async function executeCommand(
+    command: string,
+    display: boolean = true
+): Promise<string> {
     if (!socket || socket.readyState !== WebSocket.OPEN || !isConnected) {
-        addAIMessage(
-            '❌ Error: Terminal not connected. Please connect to SSH first.',
-            false,
-            'error'
-        );
-        return;
+        const errorMsg =
+            '❌ Error: Terminal not connected. Please connect to SSH first.';
+        addAIMessage(errorMsg, false, 'error');
+        throw new Error('Terminal not connected');
     }
 
     if (isExecutingCommand) {
-        addAIMessage(
-            '❌ Error: Another command is already executing. Please wait.',
-            false,
-            'error'
-        );
-        return;
+        const errorMsg =
+            '❌ Error: Another command is already executing. Please wait.';
+        addAIMessage(errorMsg, false, 'error');
+        throw new Error('Command already executing');
     }
 
-    isExecutingCommand = true;
-    commandOutputBuffer = '';
-    commandStartTime = Date.now();
-    currentExecutingCommand = command;
+    return new Promise<string>((resolve, reject) => {
+        isExecutingCommand = true;
+        commandOutputBuffer = '';
+        commandStartTime = Date.now();
+        currentExecutingCommand = command;
 
-    addAIMessage(`🔧 Executing: ${command}`, false, 'command');
-
-    const commandToSend = command.trim() + '\n';
-    socket.send(JSON.stringify({ type: 'data', data: commandToSend }));
-
-    setTimeout(() => {
-        if (isExecutingCommand) {
-            finishCommandExecution(currentExecutingCommand || command, true);
+        if (display) {
+            addAIMessage(
+                `🔧 Executing command: \`${command}\``,
+                false,
+                'command'
+            );
         }
-    }, 10000);
+
+        const commandToSend = command.trim() + '\n';
+        socket.send(JSON.stringify({ type: 'data', data: commandToSend }));
+
+        // Store the resolve/reject functions for later use
+        (window as any).currentCommandResolve = resolve;
+        (window as any).currentCommandReject = reject;
+
+        setTimeout(() => {
+            if (isExecutingCommand) {
+                finishCommandExecution(
+                    currentExecutingCommand || command,
+                    true
+                );
+            }
+        }, 60000);
+    });
 }
 
 function finishCommandExecution(command: string, isTimeout = false): void {
@@ -642,10 +665,10 @@ function finishCommandExecution(command: string, isTimeout = false): void {
     const executionTime = Date.now() - (commandStartTime || 0);
 
     let cleanOutput = commandOutputBuffer
-        .replace(/\x1b\[[0-9;]*m/g, '')
-        .replace(/\r\n/g, '\n')
-        .replace(/\r/g, '\n')
-        .trim();
+        .replace(/\x1b\[[0-9;]*m/g, '') // Remove ANSI escape codes (colors, formatting)
+        .replace(/\r\n/g, '\n') // Convert Windows line endings to Unix
+        .replace(/\r/g, '\n') // Convert Mac line endings to Unix
+        .trim(); // Remove leading/trailing whitespace
 
     const logEntry: CommandLogEntry = {
         command: command,
@@ -677,21 +700,39 @@ function finishCommandExecution(command: string, isTimeout = false): void {
             false,
             'error'
         );
-    } else {
-        addAIMessage(
-            `✅ Command completed in ${executionTime}ms`,
-            false,
-            'command'
-        );
     }
+    //  else {
+    //     addAIMessage(
+    //         `✅ Command completed in ${executionTime}ms`,
+    //         false,
+    //         'command'
+    //     );
+    // }
 
-    if (cleanOutput) {
-        addAIMessage(`📄 Output:\n${cleanOutput}`, false, 'command-output');
-    } else {
-        addAIMessage('📄 No output captured', false, 'command');
-    }
+    // if (cleanOutput) {
+    //     addAIMessage(`📄 Output:\n${cleanOutput}`, false, 'command-output');
+    // } else {
+    //     addAIMessage('📄 No output captured', false, 'command');
+    // }
 
     commandOutputBuffer = '';
+
+    // Resolve the Promise with the output
+    const resolve = (window as any).currentCommandResolve;
+    const reject = (window as any).currentCommandReject;
+
+    if (resolve) {
+        if (isTimeout) {
+            reject(
+                new Error(`Command timed out after 10s. Output: ${cleanOutput}`)
+            );
+        } else {
+            resolve(cleanOutput);
+        }
+        // Clean up the stored promise handlers
+        (window as any).currentCommandResolve = null;
+        (window as any).currentCommandReject = null;
+    }
 }
 
 function captureTerminalOutput(data: string): void {
@@ -922,38 +963,292 @@ function addAIMessage(
     });
 }
 
+const planSchema = {
+    type: 'json_schema',
+    name: 'AgentPlan',
+    strict: true,
+    schema: {
+        type: 'object',
+        properties: {
+            explanation: {
+                type: 'string',
+                description:
+                    'A human-readable explanation of the plan or next steps.',
+            },
+            steps: {
+                type: 'array',
+                description: 'Ordered list of commands to be executed.',
+                items: {
+                    type: 'object',
+                    properties: {
+                        cmd: {
+                            type: 'string',
+                            description: 'The shell command to execute.',
+                        },
+                        output: {
+                            type: 'string',
+                            description:
+                                'Captured standard output or error from execution. Can be empty before execution.',
+                        },
+                        exit: {
+                            type: 'integer',
+                            description:
+                                'Exit code from command execution (0 means success).',
+                        },
+                        executed: {
+                            type: 'boolean',
+                            description: 'Whether this step has been executed.',
+                        },
+                        expectedDuration: {
+                            type: 'integer',
+                            description:
+                                'Expected duration in milliseconds for this command to execute.',
+                        },
+                        dependsOnPreviousOutput: {
+                            type: 'boolean',
+                            description:
+                                'Whether this command has arguments that depend on the output of previous commands.',
+                        },
+                    },
+                    required: [
+                        'cmd',
+                        'output',
+                        'exit',
+                        'executed',
+                        'expectedDuration',
+                        'dependsOnPreviousOutput',
+                    ],
+                    additionalProperties: false,
+                },
+            },
+        },
+        required: ['explanation', 'steps'],
+        additionalProperties: false,
+    },
+};
+
+const planInstruction = `You are an AI agent designed to help users by providing the correct command lines to execute in a Linux terminal.
+An autobot will execute the Linux commands and collect the output.
+You will be given a goal from the user.
+You will be provided with a history of the plan and the executed results.
+You need to generate the following plan based on that information.
+Briefly describe what you are going to do in the "explanation" field in the JSON section.
+List all precise shell commands in the "steps" field in the JSON section.
+If a command's arguments depend on the output of previous commands, mark it as "dependsOnPreviousOutput" and provide placeholders for the command's arguments.`;
+
+// Get OPENAI_API_KEY from injected window config
+const OPENAI_API_KEY = (window as any).APP_CONFIG?.OPENAI_API_KEY || '';
+
+async function getPlan(goal: string, plan: any = null): Promise<string> {
+    let prompt = [
+        { role: 'system', content: planInstruction },
+        {
+            role: 'user',
+            content: plan
+                ? `The goal is: ${goal}. The old plan is: ${JSON.stringify(plan)}.`
+                : `The goal is: ${goal}.`,
+        },
+    ];
+    try {
+        const response = await fetch(`http://35.234.22.51:8080/v1/responses`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${OPENAI_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                model: 'gpt-4.1-nano',
+                input: prompt,
+                text: {
+                    format: planSchema,
+                },
+            }),
+        });
+        if (!response.ok) {
+            return `Error: Failed to get response from OpenAI (${response.status})`;
+        }
+        const data = await response.json();
+
+        return data.output?.[0].content?.[0]?.text;
+    } catch (err) {
+        return `Error: ${err}`;
+    }
+}
+
+const summarySchema = {
+    type: 'json_schema',
+    name: 'AgentPlanSummary',
+    strict: true,
+    schema: {
+        type: 'object',
+        properties: {
+            summary: {
+                type: 'string',
+                description:
+                    'Human-readable summary of the overall execution outcome.',
+            },
+        },
+        required: ['summary'],
+        additionalProperties: false,
+    },
+};
+
+const summaryInstruction = `You are an AI agent designed to help users by providing the correct command lines to execute in a Linux terminal.
+Now everything is done.
+Please generate a summary of the results of the command execution.`;
+
+async function getSummary(result: string): Promise<string> {
+    let prompt = [
+        { role: 'system', content: summaryInstruction },
+        { role: 'user', content: `The execution result is: ${result}` },
+    ];
+    const response = await fetch(`http://35.234.22.51:8080/v1/responses`, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+            'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+            model: 'gpt-4.1-nano',
+            input: prompt,
+            text: {
+                format: summarySchema,
+            },
+        }),
+    });
+    if (!response.ok) {
+        throw new Error(
+            `Failed to get response from OpenAI (${response.status})`
+        );
+    }
+    const data = await response.json();
+
+    return data.output?.[0].content?.[0]?.text;
+}
+
 function sendAIMessage(): void {
     const input = document.getElementById('ai-input') as HTMLTextAreaElement;
     const sendBtn = document.getElementById('ai-send-btn') as HTMLButtonElement;
     const message = input.value.trim();
 
+    input.value = '';
+
     if (!message) return;
 
     addAIMessage(message, true);
-    input.value = '';
 
-    const command = parseCommand(message);
-    if (command) {
-        executeCommand(command);
-        return;
+    JarvisExecute(message);
+}
+
+function getExitCode(output: string): number {
+    // remove the first line if it doesn't contains the exit code
+    const lines = output.split('\n');
+    if (lines.length > 1 && !lines[0].trim().match(/^\d+$/)) {
+        lines.shift(); // Remove the first line
     }
+    // Check if the last line is an exit code
+    return +lines[0].trim();
+}
 
-    sendBtn.disabled = true;
-    sendBtn.textContent = 'Sending...';
+async function JarvisExecute(goal: string): Promise<void> {
+    let plan = JSON.parse(await getPlan(goal));
+    do {
+        try {
+            if (!plan || typeof plan !== 'object') {
+                addAIMessage(
+                    '❌ Error: Invalid AI response format',
+                    false,
+                    'error'
+                );
+                return;
+            }
 
-    setTimeout(() => {
-        const helpText = `I'm a placeholder AI response. To execute commands, use one of these prefixes:
-• /cmd <command> - Execute a terminal command
-• /command <command> - Execute a terminal command  
-• /exec <command> - Execute a terminal command
-• /run <command> - Execute a terminal command
+            if (
+                !plan.explanation ||
+                !plan.steps ||
+                !Array.isArray(plan.steps)
+            ) {
+                addAIMessage(
+                    '❌ Error: Missing required fields in AI response',
+                    false,
+                    'error'
+                );
+                return;
+            }
 
-Example: /cmd ls -la`;
-        addAIMessage(helpText, false);
-        sendBtn.disabled = false;
-        sendBtn.textContent = 'Send';
-        input.focus();
-    }, 1000);
+            addAIMessage(`🤖 Jarvis: ${plan.explanation}`, false, 'ai-plan');
+
+            let success = true;
+            for (const step of plan.steps) {
+                if (step.executed) continue; // Skip already executed steps
+                if (step.dependsOnPreviousOutput) {
+                    addAIMessage(
+                        `🔄 Command depends on previous command's output: ${step.cmd}.`,
+                        false,
+                        'ai-plan'
+                    );
+                    continue;
+                }
+
+                //
+                try {
+                    const output = await executeCommand(step.cmd);
+                    step.output = output;
+                    step.exit = getExitCode(
+                        await executeCommand('echo $?', false)
+                    );
+                    console.log(
+                        `Command "${step.cmd}" exited with code: ${step.exit}`
+                    );
+                    step.executed = true;
+
+                    if (step.exit !== 0) {
+                        success = false;
+                        break;
+                    }
+
+                    //addAIMessage(`📄 -Output:\n${output}`, false, 'command-output');
+                    console.log(
+                        `Command "${step.cmd}" completed with output:`,
+                        output
+                    );
+                } catch (error) {
+                    console.error(`Command "${step.cmd}" failed:`, error);
+                    addAIMessage(`❌ Command failed: ${error}`, false, 'error');
+                    return;
+                }
+            }
+            if (success) {
+                const summary = JSON.parse(
+                    await getSummary(JSON.stringify(plan))
+                );
+                if (summary) {
+                    addAIMessage(
+                        `✅ Summary: ${summary.summary}.`,
+                        false,
+                        'ai-summary'
+                    );
+                }
+                return;
+            } else {
+                // Remove unexecuted steps from the plan
+                plan.steps = plan.steps.filter((step: any) => step.executed);
+
+                let newplan = JSON.parse(await getPlan(goal, plan));
+                // join the newplan
+                plan = { ...plan, ...newplan };
+            }
+        } catch (err) {
+            addAIMessage(
+                `❌ Error parsing AI response: ${err}`,
+                false,
+                'error'
+            );
+            return;
+        }
+    } while (confirm('Do you want to continue?'));
 }
 
 document.addEventListener('keydown', (e: KeyboardEvent) => {
