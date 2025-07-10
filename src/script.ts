@@ -60,9 +60,7 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 let waitingForKey = false;
 let manualClose = false;
-let pingTimer: number | undefined;
 let bufferIndex = 0;
-const PING_INTERVAL = 15000;
 
 function log(...args: any[]): void {
     console.log(new Date().toISOString(), ...args);
@@ -288,7 +286,6 @@ function startConnection(query: string): void {
     const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     manualClose = false;
     clearReconnect();
-    clearInterval(pingTimer);
     log('Opening WebSocket');
     socket = new WebSocket(`${wsProtocol}//${location.host}/terminal?${query}`);
 
@@ -299,12 +296,6 @@ function startConnection(query: string): void {
         (document.getElementById('connect-form') as HTMLElement).style.display =
             'none';
         clearReconnect();
-        pingTimer = (window as any).setInterval(() => {
-            if (socket && socket.readyState === WebSocket.OPEN) {
-                log('Sending ping');
-                socket.send(JSON.stringify({ type: 'ping' }));
-            }
-        }, PING_INTERVAL);
     };
 
     socket.onmessage = (e: MessageEvent) => {
@@ -315,16 +306,6 @@ function startConnection(query: string): void {
                 throw new Error('Not a structured control message');
             }
 
-            if (data.type === 'ping') {
-                log('Received ping from server');
-                socket.send(JSON.stringify({ type: 'pong' }));
-                log('Sent pong to server');
-                return;
-            }
-            if (data.type === 'pong') {
-                log('Received pong from server');
-                return;
-            }
             if (data.type === 'error') {
                 updateStatus(data.message, true);
                 clearReconnect();
@@ -372,7 +353,6 @@ function startConnection(query: string): void {
 
     socket.onclose = (event: CloseEvent) => {
         isConnected = false;
-        clearInterval(pingTimer);
         log('WebSocket closed', event);
         if (event.wasClean) {
             updateStatus('Connection closed', true);
@@ -390,7 +370,6 @@ function startConnection(query: string): void {
 
     socket.onerror = () => {
         isConnected = false;
-        clearInterval(pingTimer);
         log('WebSocket error');
         updateStatus('Connection failed', true);
         if (!manualClose) {
@@ -424,7 +403,6 @@ document
         if (socket) {
             manualClose = true;
             clearReconnect();
-            clearInterval(pingTimer);
             log('Closing existing WebSocket');
             socket.close();
             terminateSession();
@@ -463,7 +441,6 @@ document
 window.addEventListener('beforeunload', () => {
     if (socket && socket.readyState === WebSocket.OPEN) {
         manualClose = true;
-        clearInterval(pingTimer);
         log('Closing WebSocket before unload');
         socket.close();
     }
