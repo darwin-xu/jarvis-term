@@ -14,10 +14,101 @@ body {
     overflow: hidden;
 }
 
+.toolbar {
+    background-color: #2d2d2d;
+    padding: 0 10px;
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid #404040;
+    height: 40px;
+    align-items: center;
+}
+
+.toolbar-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-right: 8px;
+    display: flex;
+    align-items: center;
+    color: #ffffff;
+    font-family:
+        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.toolbar-center {
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+}
+
+.search-bar {
+    display: flex;
+    align-items: center;
+    background-color: #4f4f4f;
+    border-radius: 4px;
+    padding: 0 8px;
+    width: 100%;
+    max-width: 400px;
+}
+
+.search-bar i {
+    color: #cccccc;
+    margin-right: 8px;
+}
+
+.search-bar input {
+    background-color: transparent;
+    border: none;
+    color: #ffffff;
+    outline: none;
+    width: 100%;
+    padding: 8px 0;
+}
+
+.search-bar input:focus {
+}
+
+.search-bar:focus-within {
+    background-color: #5f5f5f;
+    border: 1px solid #007acc;
+}
+
+.search-bar input::placeholder {
+    color: #cccccc;
+}
+
+.toolbar-left,
+.toolbar-right {
+    display: flex;
+    gap: 8px;
+}
+
+.toolbar-button {
+    background-color: transparent;
+    color: #ffffff;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    font-family:
+        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.toolbar-button:hover {
+    background-color: #4f4f4f;
+}
+
 .container {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: calc(100vh - 41px);
     width: 100vw;
 }
 

@@ -1,8 +1,17 @@
 <!doctype html>
 <html>
     <head>
+        <title>Jarvis</title>
+        <link
+            rel="icon"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/svgs/solid/brain.svg"
+        />
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+        />
         <link
             rel="stylesheet"
             href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css"
@@ -10,6 +19,42 @@
         <link rel="stylesheet" href="styles.css" />
     </head>
     <body>
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <button class="toolbar-button" title="Menu">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="toolbar-title">Jarvis</div>
+            </div>
+            <div class="toolbar-center">
+                <div class="search-bar">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Search..." />
+                </div>
+            </div>
+            <div class="toolbar-right">
+                <button
+                    class="toolbar-button"
+                    onclick="toggleAIAssistant()"
+                    title="AI Assistant"
+                >
+                    <i class="fas fa-brain"></i>
+                </button>
+                <button
+                    class="toolbar-button"
+                    onclick="openConfigModal()"
+                    title="Settings"
+                >
+                    <i class="fas fa-sliders-h"></i>
+                </button>
+                <button class="toolbar-button" title="Profile">
+                    <i class="fas fa-user-circle"></i>
+                </button>
+                <button class="toolbar-button" title="Logout">
+                    <i class="fas fa-power-off"></i>
+                </button>
+            </div>
+        </div>
         <div class="container">
             <div
                 id="login-overlay"
