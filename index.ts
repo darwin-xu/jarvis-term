@@ -14,12 +14,11 @@ interface SessionData {
     buffer: string[];
     cols: number;
     rows: number;
-    lastActive: number;
     host: string;
     port: number;
     username: string;
     onData?: (data: Buffer) => void;
-    ws?: WebSocket & { sentIndex?: number; isAlive?: boolean };
+    ws?: WebSocket & { sentIndex?: number };
     sshListenersAdded?: boolean;
 }
 
@@ -33,8 +32,6 @@ interface CommandLogEntry {
 
 const APP_PASSWORD = process.env.APP_PASSWORD;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const SESSION_TIMEOUT_MS =
-    parseInt(process.env.SESSION_TIMEOUT_MIN || '30', 10) * 60 * 1000;
 
 const baseApp = express();
 const wsInstance = expressWs(baseApp);
@@ -81,21 +78,6 @@ const sessions = new Map<string, SessionData>();
 function log(...args: any[]): void {
     console.log(new Date().toISOString(), ...args);
 }
-
-function cleanupSessions(): void {
-    const now = Date.now();
-    for (const [id, session] of sessions) {
-        if (now - session.lastActive > SESSION_TIMEOUT_MS) {
-            if (session.stream) {
-                session.stream.end();
-            }
-            session.conn.end();
-            sessions.delete(id);
-            log(`Session ${id} timed out and was removed`);
-        }
-    }
-}
-setInterval(cleanupSessions, 60 * 1000);
 
 app.post('/auth/login', (req: any, res: any) => {
     if (!APP_PASSWORD) {
@@ -192,8 +174,6 @@ app.post('/api/command-log', (req: any, res: any) => {
     }
 });
 
-const PING_INTERVAL = 15000;
-
 function attachToSession(
     ws: WebSocket & { sentIndex?: number; isAlive?: boolean },
     session: SessionData,
@@ -217,7 +197,6 @@ function attachToSession(
                     session.ws.sentIndex!--;
                 }
             }
-            session.lastActive = Date.now();
             if (session.ws && session.ws.readyState === 1) {
                 session.ws.send(text);
                 session.ws.sentIndex = session.buffer.length;
@@ -239,8 +218,6 @@ function attachToSession(
         log(
             `SSH session ${session.id} closed (${reason}) for ${session.username}@${session.host}:${session.port}`
         );
-        clearInterval(pingInterval);
-        session.lastActive = Date.now();
         sessions.delete(session.id);
         if (session.ws && session.ws.readyState === 1) {
             session.ws.send(
@@ -270,40 +247,10 @@ function attachToSession(
         session.sshListenersAdded = true;
     }
 
-    ws.isAlive = true;
-
-    const pingInterval = setInterval(() => {
-        if (ws.readyState !== 1) {
-            clearInterval(pingInterval);
-            return;
-        }
-        if (!ws.isAlive) {
-            clearInterval(pingInterval);
-            log(`Terminating stale WebSocket for session ${session.id}`);
-            ws.terminate();
-            return;
-        }
-        ws.isAlive = false;
-        try {
-            log(`Ping WebSocket for session ${session.id}`);
-            ws.send(JSON.stringify({ type: 'ping' }));
-            session.lastActive = Date.now();
-        } catch {
-            // ignore errors during ping
-        }
-    }, PING_INTERVAL);
-
     ws.on('message', (msg: string) => {
         try {
             const data = JSON.parse(msg);
-            if (data.type === 'pong') {
-                ws.isAlive = true;
-                session.lastActive = Date.now();
-                log(`Received pong for session ${session.id}`);
-            } else if (data.type === 'ping') {
-                log(`Received ping from client for session ${session.id}`);
-                ws.send(JSON.stringify({ type: 'pong' }));
-            } else if (data.type === 'resize') {
+            if (data.type === 'resize') {
                 session.cols = data.cols || 80;
                 session.rows = data.rows || 24;
                 if (session.stream.setWindow) {
@@ -322,8 +269,6 @@ function attachToSession(
             `WebSocket for session ${session.id} closed code=${code} reason=${reason.toString()}`
         );
         session.ws = undefined;
-        session.lastActive = Date.now();
-        clearInterval(pingInterval);
     });
 
     ws.on('error', (err: Error) => {
@@ -332,8 +277,6 @@ function attachToSession(
             err
         );
         session.ws = undefined;
-        session.lastActive = Date.now();
-        clearInterval(pingInterval);
     });
 
     ws.send(
@@ -404,7 +347,6 @@ app.ws('/terminal', (ws: WebSocket, req: any) => {
         buffer: [],
         cols: 80,
         rows: 24,
-        lastActive: Date.now(),
         host,
         port,
         username,
