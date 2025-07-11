@@ -65,9 +65,6 @@ body {
     padding: 8px 0;
 }
 
-.search-bar input:focus {
-}
-
 .search-bar:focus-within {
     background-color: #5f5f5f;
     border: 1px solid #007acc;
