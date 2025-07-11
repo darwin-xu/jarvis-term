@@ -1022,8 +1022,9 @@ async function getPlan(goal: string, plan: any = null): Promise<string> {
         {
             role: 'user',
             content: plan
-                ? `The goal is: ${goal}. The old plan is: ${JSON.stringify(plan)}.`
-                : `The goal is: ${goal}.`,
+                ? `The goal is: ${goal}. The result of the executed plan is: ${JSON.stringify(plan)}. ` +
+                  `If the goal is not achieved, please provide a new plan to achieve this goal.`
+                : `The goal is: ${goal}. Please provide a plan to achieve this goal.`,
         },
     ];
     try {
@@ -1060,20 +1061,25 @@ const summarySchema = {
     schema: {
         type: 'object',
         properties: {
+            achieve: {
+                type: 'boolean',
+                description: 'Whether the goal has been achieved.',
+            },
             summary: {
                 type: 'string',
                 description:
                     'Human-readable summary of the overall execution outcome.',
             },
         },
-        required: ['summary'],
+        required: ['achieve', 'summary'],
         additionalProperties: false,
     },
 };
 
 const summaryInstruction = `You are an AI agent designed to help users by providing the correct command lines to execute in a Linux terminal.
-Now everything is done.
-Please generate a summary of the results of the command execution.`;
+Now the plan has been executed with result.
+Please determine if the goal has been achieved based on the provided plan and execution results.
+Please generate a summary if the goal has been achieved.`;
 
 async function getSummary(result: string): Promise<string> {
     let prompt = [
@@ -1131,6 +1137,7 @@ function getExitCode(output: string): number {
 
 async function JarvisExecute(goal: string): Promise<void> {
     let plan = JSON.parse(await getPlan(goal));
+    let retry = 30;
     do {
         try {
             if (!plan || typeof plan !== 'object') {
@@ -1197,19 +1204,20 @@ async function JarvisExecute(goal: string): Promise<void> {
                     return;
                 }
             }
-            if (success) {
-                const summary = JSON.parse(
+
+            const result = JSON.parse(
                     await getSummary(JSON.stringify(plan))
                 );
-                if (summary) {
-                    addAIMessage(
-                        `✅ Summary: ${summary.summary}.`,
-                        false,
-                        'ai-summary'
-                    );
-                }
+
+            if (result.achieve) {
+                addAIMessage(
+                    `✅ Goal achieved! Summary: ${result.summary}`,
+                    false,
+                    'ai-summary'
+                );
                 return;
-            } else {
+            }
+            else {
                 // Remove unexecuted steps from the plan
                 plan.steps = plan.steps.filter((step: any) => step.executed);
 
@@ -1217,6 +1225,27 @@ async function JarvisExecute(goal: string): Promise<void> {
                 // join the newplan
                 plan = { ...plan, ...newplan };
             }
+
+            // if (success) {
+            //     const summary = JSON.parse(
+            //         await getSummary(JSON.stringify(plan))
+            //     );
+            //     if (summary) {
+            //         addAIMessage(
+            //             `✅ Summary: ${summary.summary}.`,
+            //             false,
+            //             'ai-summary'
+            //         );
+            //     }
+            //     return;
+            // } else {
+            //     // Remove unexecuted steps from the plan
+            //     plan.steps = plan.steps.filter((step: any) => step.executed);
+
+            //     let newplan = JSON.parse(await getPlan(goal, plan));
+            //     // join the newplan
+            //     plan = { ...plan, ...newplan };
+            // }
         } catch (err) {
             addAIMessage(
                 `❌ Error parsing AI response: ${err}`,
@@ -1225,7 +1254,7 @@ async function JarvisExecute(goal: string): Promise<void> {
             );
             return;
         }
-    } while (confirm('Do you want to continue?'));
+    } while (retry-- > 0);
 }
 
 document.addEventListener('keydown', (e: KeyboardEvent) => {
