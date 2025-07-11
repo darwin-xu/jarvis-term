@@ -354,6 +354,10 @@ function startConnection(query: string): void {
     socket.onclose = (event: CloseEvent) => {
         isConnected = false;
         log('WebSocket closed', event);
+        
+        // Clear any pending command timeout since connection is closed
+        clearCommandTimeout();
+        
         if (event.wasClean) {
             updateStatus('Connection closed', true);
         } else {
@@ -372,6 +376,10 @@ function startConnection(query: string): void {
         isConnected = false;
         log('WebSocket error');
         updateStatus('Connection failed', true);
+        
+        // Clear any pending command timeout since connection failed
+        clearCommandTimeout();
+        
         if (!manualClose) {
             scheduleReconnect();
         } else {
@@ -457,6 +465,15 @@ let isExecutingCommand = false;
 let commandOutputBuffer = '';
 let commandStartTime: number | null = null;
 let currentExecutingCommand: string | null = null; // Track currently executing command
+let commandTimeout: number | undefined; // Track command timeout
+
+// Helper function to clear command timeout
+function clearCommandTimeout(): void {
+    if (commandTimeout) {
+        clearTimeout(commandTimeout);
+        commandTimeout = undefined;
+    }
+}
 
 // Config modal functions
 function openConfigModal(): void {
@@ -597,6 +614,9 @@ async function executeCommand(
         commandStartTime = Date.now();
         currentExecutingCommand = command;
 
+        // Clear any existing timeout
+        clearCommandTimeout();
+
         if (display) {
             addAIMessage(
                 `🔧 Executing command: \`${command}\``,
@@ -612,7 +632,8 @@ async function executeCommand(
         (window as any).currentCommandResolve = resolve;
         (window as any).currentCommandReject = reject;
 
-        setTimeout(() => {
+        // Set up timeout for this specific command
+        commandTimeout = (window as any).setTimeout(() => {
             if (isExecutingCommand) {
                 finishCommandExecution(
                     currentExecutingCommand || command,
@@ -636,6 +657,9 @@ function finishCommandExecution(command: string, isTimeout = false): void {
         isTimeout,
         executionTime: Date.now() - (commandStartTime || 0),
     });
+
+    // Clear the timeout since the command is finishing
+    clearCommandTimeout();
 
     isExecutingCommand = false;
     currentExecutingCommand = null;
