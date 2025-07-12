@@ -105,7 +105,7 @@ body {
 .container {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 41px);
+    height: calc(100vh - 40px);
     width: 100vw;
 }
 
