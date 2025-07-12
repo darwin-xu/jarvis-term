@@ -354,10 +354,10 @@ function startConnection(query: string): void {
     socket.onclose = (event: CloseEvent) => {
         isConnected = false;
         log('WebSocket closed', event);
-        
+
         // Clear any pending command timeout since connection is closed
         clearCommandTimeout();
-        
+
         if (event.wasClean) {
             updateStatus('Connection closed', true);
         } else {
@@ -376,10 +376,10 @@ function startConnection(query: string): void {
         isConnected = false;
         log('WebSocket error');
         updateStatus('Connection failed', true);
-        
+
         // Clear any pending command timeout since connection failed
         clearCommandTimeout();
-        
+
         if (!manualClose) {
             scheduleReconnect();
         } else {
@@ -1229,9 +1229,7 @@ async function JarvisExecute(goal: string): Promise<void> {
                 }
             }
 
-            const result = JSON.parse(
-                    await getSummary(JSON.stringify(plan))
-                );
+            const result = JSON.parse(await getSummary(JSON.stringify(plan)));
 
             if (result.achieve) {
                 addAIMessage(
@@ -1240,8 +1238,7 @@ async function JarvisExecute(goal: string): Promise<void> {
                     'ai-summary'
                 );
                 return;
-            }
-            else {
+            } else {
                 // Remove unexecuted steps from the plan
                 plan.steps = plan.steps.filter((step: any) => step.executed);
 

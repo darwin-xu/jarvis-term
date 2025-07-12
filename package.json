@@ -7,7 +7,7 @@
         "build:server": "tsc -p tsconfig.server.json",
         "build:client": "tsc -p tsconfig.json",
         "start": "npm run build && node dist/index.js",
-        "dev": "npm run build && node dist/index.js",
+        "dev": "npm run build && node dist/server.js",
         "test": "echo \"No tests specified\"",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
