@@ -697,7 +697,7 @@ function finishCommandExecution(command: string, isTimeout = false): void {
 
     if (isTimeout) {
         addAIMessage(
-            '⏰ Command execution timeout (10s). Output captured so far:',
+            '⏰ Command execution timeout (60s). Output captured so far:',
             false,
             'error'
         );
@@ -725,7 +725,7 @@ function finishCommandExecution(command: string, isTimeout = false): void {
     if (resolve) {
         if (isTimeout) {
             reject(
-                new Error(`Command timed out after 10s. Output: ${cleanOutput}`)
+                new Error(`Command timed out after 60s. Output: ${cleanOutput}`)
             );
         } else {
             resolve(cleanOutput);
