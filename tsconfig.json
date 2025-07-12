@@ -3,7 +3,7 @@
         "target": "ES2020",
         "module": "none",
         "lib": ["ES2020", "DOM"],
-        "outDir": "./public",
+        "outDir": "./dist",
         "rootDir": "./src",
         "strict": true,
         "esModuleInterop": true,
