@@ -31,7 +31,6 @@ interface WindowWithTerminal extends Window {
 
 declare const customWindow: WindowWithTerminal;
 
-// Extend window interface to include APP_CONFIG
 interface AppConfig {
     OPENAI_API_KEY: string;
 }
