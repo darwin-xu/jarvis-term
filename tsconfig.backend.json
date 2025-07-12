@@ -4,7 +4,7 @@
         "module": "commonjs",
         "lib": ["ES2020"],
         "outDir": "./dist",
-        "rootDir": "./",
+        "rootDir": "./src/backend",
         "strict": true,
         "esModuleInterop": true,
         "skipLibCheck": true,
@@ -16,6 +16,6 @@
         "moduleResolution": "node",
         "types": ["node"]
     },
-    "include": ["server.ts"],
-    "exclude": ["node_modules", "dist", "public", "src"]
+    "include": ["src/backend/server.ts"],
+    "exclude": ["node_modules", "dist", "public", "src/frontend"]
 }
