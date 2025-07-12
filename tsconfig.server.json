@@ -16,6 +16,6 @@
         "moduleResolution": "node",
         "types": ["node"]
     },
-    "include": ["index.ts"],
+    "include": ["server.ts"],
     "exclude": ["node_modules", "dist", "public", "src"]
 }
