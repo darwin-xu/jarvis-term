@@ -4,7 +4,7 @@
         "module": "none",
         "lib": ["ES2020", "DOM"],
         "outDir": "./dist",
-        "rootDir": "./src",
+        "rootDir": "./src/frontend",
         "strict": true,
         "esModuleInterop": true,
         "skipLibCheck": true,
@@ -12,6 +12,6 @@
         "declaration": false,
         "sourceMap": true
     },
-    "include": ["src/**/*"],
+    "include": ["src/frontend/**/*"],
     "exclude": ["node_modules", "dist", "server.ts"]
 }
