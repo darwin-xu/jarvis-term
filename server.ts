@@ -43,14 +43,14 @@ app.use(express.json());
 
 // Serve static files except index.html
 app.use(
-    express.static(path.join(__dirname, '..', 'public'), {
+    express.static(path.join(__dirname, '..', 'dist'), {
         index: false,
     })
 );
 
 // Custom route for index.html with injected data
 app.get('/', (req: Request, res: Response) => {
-    const indexPath = path.join(__dirname, '..', 'public', 'index.html');
+    const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
 
     try {
         let html = fs.readFileSync(indexPath, 'utf8');
