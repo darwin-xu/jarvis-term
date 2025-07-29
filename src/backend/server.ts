@@ -67,7 +67,7 @@ app.use(
     })
 );
 
-// Custom route for index.html 
+// Custom route for index.html
 app.get('/', (req: Request, res: Response) => {
     const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
 
@@ -282,7 +282,10 @@ Now the plan has been executed with result.
 Please determine if the goal has been achieved based on the provided plan and execution results.
 Please generate a summary if the goal has been achieved.`;
 
-async function getPlan(goal: string, plan: JarvisPlan | null = null): Promise<string> {
+async function getPlan(
+    goal: string,
+    plan: JarvisPlan | null = null
+): Promise<string> {
     let prompt = [
         { role: 'system', content: planInstruction },
         {
@@ -293,7 +296,7 @@ async function getPlan(goal: string, plan: JarvisPlan | null = null): Promise<st
                 : `The goal is: ${goal}. Please provide a plan to achieve this goal.`,
         },
     ];
-    
+
     try {
         const response = await fetch(`http://35.234.22.51:8080/v1/responses`, {
             method: 'POST',
@@ -309,12 +312,12 @@ async function getPlan(goal: string, plan: JarvisPlan | null = null): Promise<st
                 },
             }),
         });
-        
+
         if (!response.ok) {
             return `Error: Failed to get response from OpenAI (${response.status})`;
         }
-        
-        const data = await response.json() as any;
+
+        const data = (await response.json()) as any;
         return data.output?.[0].content?.[0]?.text;
     } catch (err) {
         return `Error: ${err}`;
@@ -326,7 +329,7 @@ async function getSummary(result: string): Promise<string> {
         { role: 'system', content: summaryInstruction },
         { role: 'user', content: `The execution result is: ${result}` },
     ];
-    
+
     const response = await fetch(`http://35.234.22.51:8080/v1/responses`, {
         method: 'POST',
         headers: {
@@ -341,18 +344,21 @@ async function getSummary(result: string): Promise<string> {
             },
         }),
     });
-    
+
     if (!response.ok) {
         throw new Error(
             `Failed to get response from OpenAI (${response.status})`
         );
     }
-    
-    const data = await response.json() as any;
+
+    const data = (await response.json()) as any;
     return data.output?.[0].content?.[0]?.text;
 }
 
-async function executeCommandOnSession(sessionId: string, command: string): Promise<{ output: string; exitCode: number }> {
+async function executeCommandOnSession(
+    sessionId: string,
+    command: string
+): Promise<{ output: string; exitCode: number }> {
     return new Promise((resolve, reject) => {
         const session = sessions.get(sessionId);
         if (!session || !session.stream) {
@@ -363,34 +369,37 @@ async function executeCommandOnSession(sessionId: string, command: string): Prom
         let outputBuffer = '';
         let commandStartTime = Date.now();
         let isExecuting = true;
-        
+
         // Create a temporary data handler for this command
         const originalOnData = session.onData;
         let commandTimeout: NodeJS.Timeout;
-        
-        const finishExecution = (exitCode: number = 0, isTimeout: boolean = false) => {
+
+        const finishExecution = (
+            exitCode: number = 0,
+            isTimeout: boolean = false
+        ) => {
             if (!isExecuting) return;
             isExecuting = false;
-            
+
             // Clear timeout
             if (commandTimeout) {
                 clearTimeout(commandTimeout);
             }
-            
+
             // Restore original data handler
             if (originalOnData) {
                 session.onData = originalOnData;
                 session.stream.removeAllListeners('data');
                 session.stream.on('data', originalOnData);
             }
-            
+
             // Clean output by removing ANSI escape codes
             let cleanOutput = outputBuffer
                 .replace(/\x1b\[[0-9;]*m/g, '') // Remove ANSI escape codes
                 .replace(/\r\n/g, '\n')
                 .replace(/\r/g, '\n')
                 .trim();
-            
+
             resolve({ output: cleanOutput, exitCode });
         };
 
@@ -403,19 +412,30 @@ async function executeCommandOnSession(sessionId: string, command: string): Prom
         const commandDataHandler = (data: Buffer) => {
             const text = data.toString('utf8');
             outputBuffer += text;
-            
+
             // Also send to original handler so WebSocket clients still see output
             if (originalOnData) {
                 originalOnData(data);
             }
-            
+
             // Check for command prompt patterns to detect completion
             const promptPatterns = [
-                /\$ $/m, /# $/m, /> $/m, /\] $/m, /% $/m, /➜ /m, /❯ /m,
-                /\$\s*$/m, /#\s*$/m, /bash-[\d\.]+-\$ $/m, /zsh-[\d\.]+-% $/m,
+                /\$ $/m,
+                /# $/m,
+                /> $/m,
+                /\] $/m,
+                /% $/m,
+                /➜ /m,
+                /❯ /m,
+                /\$\s*$/m,
+                /#\s*$/m,
+                /bash-[\d\.]+-\$ $/m,
+                /zsh-[\d\.]+-% $/m,
             ];
-            
-            const hasPrompt = promptPatterns.some(pattern => pattern.test(text));
+
+            const hasPrompt = promptPatterns.some(pattern =>
+                pattern.test(text)
+            );
             if (hasPrompt) {
                 setTimeout(() => {
                     if (isExecuting) {
@@ -423,32 +443,38 @@ async function executeCommandOnSession(sessionId: string, command: string): Prom
                         const exitCodeCommand = 'echo $?\n';
                         let exitCodeBuffer = '';
                         let gotExitCode = false;
-                        
+
                         const exitCodeHandler = (exitData: Buffer) => {
                             if (gotExitCode) return;
                             const exitText = exitData.toString('utf8');
                             exitCodeBuffer += exitText;
-                            
+
                             // Look for the exit code in the output
                             const lines = exitCodeBuffer.split('\n');
                             for (const line of lines) {
                                 const trimmed = line.trim();
                                 if (/^\d+$/.test(trimmed)) {
                                     gotExitCode = true;
-                                    session.stream.removeListener('data', exitCodeHandler);
+                                    session.stream.removeListener(
+                                        'data',
+                                        exitCodeHandler
+                                    );
                                     finishExecution(parseInt(trimmed, 10));
                                     return;
                                 }
                             }
                         };
-                        
+
                         session.stream.on('data', exitCodeHandler);
                         session.stream.write(exitCodeCommand);
-                        
+
                         // Fallback timeout for exit code check
                         setTimeout(() => {
                             if (!gotExitCode) {
-                                session.stream.removeListener('data', exitCodeHandler);
+                                session.stream.removeListener(
+                                    'data',
+                                    exitCodeHandler
+                                );
                                 finishExecution(0); // Assume success if we can't get exit code
                             }
                         }, 2000);
@@ -456,12 +482,12 @@ async function executeCommandOnSession(sessionId: string, command: string): Prom
                 }, 100);
             }
         };
-        
+
         // Replace the data handler temporarily
         session.onData = commandDataHandler;
         session.stream.removeAllListeners('data');
         session.stream.on('data', commandDataHandler);
-        
+
         // Send the command
         const commandToSend = command.trim() + '\n';
         session.stream.write(commandToSend);
@@ -476,27 +502,27 @@ app.post('/api/jarvis-execute', async (req: any, res: any) => {
 
     try {
         const { goal, sessionId } = req.body;
-        
+
         if (!goal) {
             return res.status(400).json({ error: 'Goal is required' });
         }
-        
+
         if (!sessionId) {
             return res.status(400).json({ error: 'Session ID is required' });
         }
-        
+
         const session = sessions.get(sessionId);
         if (!session) {
             return res.status(400).json({ error: 'Invalid session ID' });
         }
 
         log(`Jarvis execute request: ${goal} for session ${sessionId}`);
-        
+
         // Set up SSE for real-time updates
         res.writeHead(200, {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
+            Connection: 'keep-alive',
             'Access-Control-Allow-Origin': '*',
         });
 
@@ -504,14 +530,22 @@ app.post('/api/jarvis-execute', async (req: any, res: any) => {
             res.write(`event: ${type}\n`);
             res.write(`data: ${JSON.stringify(data)}\n\n`);
         };
-        
+
         try {
             let plan: JarvisPlan = JSON.parse(await getPlan(goal));
             let retry = 30;
-            
+
             do {
-                if (!plan || typeof plan !== 'object' || !plan.explanation || !plan.steps || !Array.isArray(plan.steps)) {
-                    sendEvent('error', { message: 'Invalid AI response format' });
+                if (
+                    !plan ||
+                    typeof plan !== 'object' ||
+                    !plan.explanation ||
+                    !plan.steps ||
+                    !Array.isArray(plan.steps)
+                ) {
+                    sendEvent('error', {
+                        message: 'Invalid AI response format',
+                    });
                     res.end();
                     return;
                 }
@@ -522,16 +556,19 @@ app.post('/api/jarvis-execute', async (req: any, res: any) => {
                 for (const step of plan.steps) {
                     if (step.executed) continue;
                     if (step.dependsOnPreviousOutput) {
-                        sendEvent('message', { 
+                        sendEvent('message', {
                             content: `🔄 Command depends on previous command's output: ${step.cmd}.`,
-                            type: 'ai-plan'
+                            type: 'ai-plan',
                         });
                         continue;
                     }
 
                     try {
                         sendEvent('command', { command: step.cmd });
-                        const result = await executeCommandOnSession(sessionId, step.cmd);
+                        const result = await executeCommandOnSession(
+                            sessionId,
+                            step.cmd
+                        );
                         step.output = result.output;
                         step.exit = result.exitCode;
                         step.executed = true;
@@ -541,39 +578,45 @@ app.post('/api/jarvis-execute', async (req: any, res: any) => {
                             break;
                         }
 
-                        sendEvent('command_result', { 
-                            command: step.cmd, 
+                        sendEvent('command_result', {
+                            command: step.cmd,
                             output: result.output,
-                            exitCode: result.exitCode
+                            exitCode: result.exitCode,
                         });
                     } catch (error) {
-                        sendEvent('error', { message: `Command failed: ${error}` });
+                        sendEvent('error', {
+                            message: `Command failed: ${error}`,
+                        });
                         res.end();
                         return;
                     }
                 }
 
-                const summaryResult: JarvisSummary = JSON.parse(await getSummary(JSON.stringify(plan)));
+                const summaryResult: JarvisSummary = JSON.parse(
+                    await getSummary(JSON.stringify(plan))
+                );
 
                 if (summaryResult.achieve) {
-                    sendEvent('success', { 
-                        message: `✅ Goal achieved! Summary: ${summaryResult.summary}` 
+                    sendEvent('success', {
+                        message: `✅ Goal achieved! Summary: ${summaryResult.summary}`,
                     });
                     res.end();
                     return;
                 } else {
                     // Remove unexecuted steps and get new plan
                     plan.steps = plan.steps.filter(step => step.executed);
-                    const newPlan: JarvisPlan = JSON.parse(await getPlan(goal, plan));
+                    const newPlan: JarvisPlan = JSON.parse(
+                        await getPlan(goal, plan)
+                    );
                     plan = { ...plan, ...newPlan };
                 }
             } while (retry-- > 0);
-            
+
             sendEvent('error', { message: 'Maximum retry attempts reached' });
         } catch (error) {
             sendEvent('error', { message: `Error: ${error}` });
         }
-        
+
         res.end();
     } catch (error) {
         log('Error in jarvis-execute:', error);

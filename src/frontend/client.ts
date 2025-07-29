@@ -976,7 +976,11 @@ function sendAIMessage(): void {
 async function JarvisExecute(goal: string): Promise<void> {
     const sessionId = localStorage.getItem('sessionId');
     if (!sessionId) {
-        addAIMessage('❌ Error: No active session. Please connect to SSH first.', false, 'error');
+        addAIMessage(
+            '❌ Error: No active session. Please connect to SSH first.',
+            false,
+            'error'
+        );
         return;
     }
 
@@ -989,13 +993,17 @@ async function JarvisExecute(goal: string): Promise<void> {
             credentials: 'include',
             body: JSON.stringify({
                 goal: goal,
-                sessionId: sessionId
-            })
+                sessionId: sessionId,
+            }),
         });
 
         if (!response.ok) {
             const errorData = await response.json();
-            addAIMessage(`❌ Error: ${errorData.error || 'Failed to execute Jarvis request'}`, false, 'error');
+            addAIMessage(
+                `❌ Error: ${errorData.error || 'Failed to execute Jarvis request'}`,
+                false,
+                'error'
+            );
             return;
         }
 
@@ -1004,12 +1012,16 @@ async function JarvisExecute(goal: string): Promise<void> {
         const decoder = new TextDecoder();
 
         if (!reader) {
-            addAIMessage('❌ Error: Unable to read response stream', false, 'error');
+            addAIMessage(
+                '❌ Error: Unable to read response stream',
+                false,
+                'error'
+            );
             return;
         }
 
         let buffer = '';
-        
+
         while (true) {
             const { value, done } = await reader.read();
             if (done) break;
@@ -1020,32 +1032,58 @@ async function JarvisExecute(goal: string): Promise<void> {
 
             for (const line of lines) {
                 if (line.startsWith('event: ') || line.startsWith('data: ')) {
-                    const eventType = line.startsWith('event: ') ? line.slice(7) : null;
-                    const dataLine = line.startsWith('data: ') ? line.slice(6) : null;
-                    
+                    const eventType = line.startsWith('event: ')
+                        ? line.slice(7)
+                        : null;
+                    const dataLine = line.startsWith('data: ')
+                        ? line.slice(6)
+                        : null;
+
                     if (dataLine) {
                         try {
                             const data = JSON.parse(dataLine);
-                            
+
                             switch (eventType) {
                                 case 'plan':
-                                    addAIMessage(`🤖 Jarvis: ${data.explanation}`, false, 'ai-plan');
+                                    addAIMessage(
+                                        `🤖 Jarvis: ${data.explanation}`,
+                                        false,
+                                        'ai-plan'
+                                    );
                                     break;
                                 case 'command':
-                                    addAIMessage(`🔧 Executing command: \`${data.command}\``, false, 'command');
+                                    addAIMessage(
+                                        `🔧 Executing command: \`${data.command}\``,
+                                        false,
+                                        'command'
+                                    );
                                     break;
                                 case 'command_result':
                                     // Optionally show command results
-                                    console.log(`Command "${data.command}" completed with exit code: ${data.exitCode}`);
+                                    console.log(
+                                        `Command "${data.command}" completed with exit code: ${data.exitCode}`
+                                    );
                                     break;
                                 case 'message':
-                                    addAIMessage(data.content, false, data.type || 'normal');
+                                    addAIMessage(
+                                        data.content,
+                                        false,
+                                        data.type || 'normal'
+                                    );
                                     break;
                                 case 'success':
-                                    addAIMessage(data.message, false, 'ai-summary');
+                                    addAIMessage(
+                                        data.message,
+                                        false,
+                                        'ai-summary'
+                                    );
                                     break;
                                 case 'error':
-                                    addAIMessage(`❌ ${data.message}`, false, 'error');
+                                    addAIMessage(
+                                        `❌ ${data.message}`,
+                                        false,
+                                        'error'
+                                    );
                                     break;
                             }
                         } catch (e) {
@@ -1056,7 +1094,11 @@ async function JarvisExecute(goal: string): Promise<void> {
             }
         }
     } catch (error) {
-        addAIMessage(`❌ Error communicating with Jarvis: ${error}`, false, 'error');
+        addAIMessage(
+            `❌ Error communicating with Jarvis: ${error}`,
+            false,
+            'error'
+        );
     }
 }
 
