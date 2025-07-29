@@ -207,9 +207,6 @@ function attachToSession(
     }
 
     session.ws = ws;
-    log(
-        `WebSocket attached to session ${session.id} from ${(ws as any)._socket.remoteAddress}:${(ws as any)._socket.remotePort}`
-    );
 
     let closed = false;
     function handleSshClose(reason: string): void {
@@ -265,9 +262,6 @@ function attachToSession(
     });
 
     ws.on('close', (code: number, reason: Buffer) => {
-        log(
-            `WebSocket for session ${session.id} closed code=${code} reason=${reason.toString()}`
-        );
         session.ws = undefined;
     });
 
@@ -295,9 +289,6 @@ app.ws('/terminal', (ws: WebSocket, req: any) => {
     if (sessionId) {
         if (sessions.has(sessionId as string)) {
             const session = sessions.get(sessionId as string)!;
-            log(
-                `WebSocket reconnect from ${req.socket.remoteAddress}:${req.socket.remotePort} for session ${sessionId}`
-            );
             attachToSession(ws as any, session, offset);
             return;
         } else {
