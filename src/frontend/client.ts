@@ -31,10 +31,6 @@ interface WindowWithTerminal extends Window {
 
 declare const customWindow: WindowWithTerminal;
 
-interface AppConfig {
-    OPENAI_API_KEY: string;
-}
-
 interface CommandLogEntry {
     command: string;
     output: string;
@@ -963,177 +959,6 @@ function addAIMessage(
     });
 }
 
-const planSchema = {
-    type: 'json_schema',
-    name: 'AgentPlan',
-    strict: true,
-    schema: {
-        type: 'object',
-        properties: {
-            explanation: {
-                type: 'string',
-                description:
-                    'A human-readable explanation of the plan or next steps.',
-            },
-            steps: {
-                type: 'array',
-                description: 'Ordered list of commands to be executed.',
-                items: {
-                    type: 'object',
-                    properties: {
-                        cmd: {
-                            type: 'string',
-                            description: 'The shell command to execute.',
-                        },
-                        output: {
-                            type: 'string',
-                            description:
-                                'Captured standard output or error from execution. Can be empty before execution.',
-                        },
-                        exit: {
-                            type: 'integer',
-                            description:
-                                'Exit code from command execution (0 means success).',
-                        },
-                        executed: {
-                            type: 'boolean',
-                            description: 'Whether this step has been executed.',
-                        },
-                        expectedDuration: {
-                            type: 'integer',
-                            description:
-                                'Expected duration in milliseconds for this command to execute.',
-                        },
-                        dependsOnPreviousOutput: {
-                            type: 'boolean',
-                            description:
-                                'Whether this command has arguments that depend on the output of previous commands.',
-                        },
-                    },
-                    required: [
-                        'cmd',
-                        'output',
-                        'exit',
-                        'executed',
-                        'expectedDuration',
-                        'dependsOnPreviousOutput',
-                    ],
-                    additionalProperties: false,
-                },
-            },
-        },
-        required: ['explanation', 'steps'],
-        additionalProperties: false,
-    },
-};
-
-const planInstruction = `You are an AI agent designed to help users by providing the correct command lines to execute in a Linux terminal.
-An autobot will execute the Linux commands and collect the output.
-You will be given a goal from the user.
-You will be provided with a history of the plan and the executed results.
-You need to generate the following plan based on that information.
-Briefly describe what you are going to do in the "explanation" field in the JSON section.
-List all precise shell commands in the "steps" field in the JSON section.
-If a command's arguments depend on the output of previous commands, mark it as "dependsOnPreviousOutput" and provide placeholders for the command's arguments.`;
-
-// Get OPENAI_API_KEY from injected window config
-const OPENAI_API_KEY = (window as any).APP_CONFIG?.OPENAI_API_KEY || '';
-
-async function getPlan(goal: string, plan: any = null): Promise<string> {
-    let prompt = [
-        { role: 'system', content: planInstruction },
-        {
-            role: 'user',
-            content: plan
-                ? `The goal is: ${goal}. The result of the executed plan is: ${JSON.stringify(plan)}. ` +
-                  `If the goal is not achieved, please provide a new plan to achieve this goal.`
-                : `The goal is: ${goal}. Please provide a plan to achieve this goal.`,
-        },
-    ];
-    try {
-        const response = await fetch(`http://35.234.22.51:8080/v1/responses`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${OPENAI_API_KEY}`,
-                'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-                model: 'gpt-4.1-nano',
-                input: prompt,
-                text: {
-                    format: planSchema,
-                },
-            }),
-        });
-        if (!response.ok) {
-            return `Error: Failed to get response from OpenAI (${response.status})`;
-        }
-        const data = await response.json();
-
-        return data.output?.[0].content?.[0]?.text;
-    } catch (err) {
-        return `Error: ${err}`;
-    }
-}
-
-const summarySchema = {
-    type: 'json_schema',
-    name: 'AgentPlanSummary',
-    strict: true,
-    schema: {
-        type: 'object',
-        properties: {
-            achieve: {
-                type: 'boolean',
-                description: 'Whether the goal has been achieved.',
-            },
-            summary: {
-                type: 'string',
-                description:
-                    'Human-readable summary of the overall execution outcome.',
-            },
-        },
-        required: ['achieve', 'summary'],
-        additionalProperties: false,
-    },
-};
-
-const summaryInstruction = `You are an AI agent designed to help users by providing the correct command lines to execute in a Linux terminal.
-Now the plan has been executed with result.
-Please determine if the goal has been achieved based on the provided plan and execution results.
-Please generate a summary if the goal has been achieved.`;
-
-async function getSummary(result: string): Promise<string> {
-    let prompt = [
-        { role: 'system', content: summaryInstruction },
-        { role: 'user', content: `The execution result is: ${result}` },
-    ];
-    const response = await fetch(`http://35.234.22.51:8080/v1/responses`, {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${OPENAI_API_KEY}`,
-            'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-            model: 'gpt-4.1-nano',
-            input: prompt,
-            text: {
-                format: summarySchema,
-            },
-        }),
-    });
-    if (!response.ok) {
-        throw new Error(
-            `Failed to get response from OpenAI (${response.status})`
-        );
-    }
-    const data = await response.json();
-
-    return data.output?.[0].content?.[0]?.text;
-}
-
 function sendAIMessage(): void {
     const input = document.getElementById('ai-input') as HTMLTextAreaElement;
     const sendBtn = document.getElementById('ai-send-btn') as HTMLButtonElement;
@@ -1148,133 +973,91 @@ function sendAIMessage(): void {
     JarvisExecute(message);
 }
 
-function getExitCode(output: string): number {
-    // remove the first line if it doesn't contains the exit code
-    const lines = output.split('\n');
-    if (lines.length > 1 && !lines[0].trim().match(/^\d+$/)) {
-        lines.shift(); // Remove the first line
-    }
-    // Check if the last line is an exit code
-    return +lines[0].trim();
-}
-
 async function JarvisExecute(goal: string): Promise<void> {
-    let plan = JSON.parse(await getPlan(goal));
-    let retry = 30;
-    do {
-        try {
-            if (!plan || typeof plan !== 'object') {
-                addAIMessage(
-                    '❌ Error: Invalid AI response format',
-                    false,
-                    'error'
-                );
-                return;
-            }
+    const sessionId = localStorage.getItem('sessionId');
+    if (!sessionId) {
+        addAIMessage('❌ Error: No active session. Please connect to SSH first.', false, 'error');
+        return;
+    }
 
-            if (
-                !plan.explanation ||
-                !plan.steps ||
-                !Array.isArray(plan.steps)
-            ) {
-                addAIMessage(
-                    '❌ Error: Missing required fields in AI response',
-                    false,
-                    'error'
-                );
-                return;
-            }
+    try {
+        const response = await fetch('/api/jarvis-execute', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                goal: goal,
+                sessionId: sessionId
+            })
+        });
 
-            addAIMessage(`🤖 Jarvis: ${plan.explanation}`, false, 'ai-plan');
-
-            let success = true;
-            for (const step of plan.steps) {
-                if (step.executed) continue; // Skip already executed steps
-                if (step.dependsOnPreviousOutput) {
-                    addAIMessage(
-                        `🔄 Command depends on previous command's output: ${step.cmd}.`,
-                        false,
-                        'ai-plan'
-                    );
-                    continue;
-                }
-
-                //
-                try {
-                    const output = await executeCommand(step.cmd);
-                    step.output = output;
-                    step.exit = getExitCode(
-                        await executeCommand('echo $?', false)
-                    );
-                    console.log(
-                        `Command "${step.cmd}" exited with code: ${step.exit}`
-                    );
-                    step.executed = true;
-
-                    if (step.exit !== 0) {
-                        success = false;
-                        break;
-                    }
-
-                    //addAIMessage(`📄 -Output:\n${output}`, false, 'command-output');
-                    console.log(
-                        `Command "${step.cmd}" completed with output:`,
-                        output
-                    );
-                } catch (error) {
-                    console.error(`Command "${step.cmd}" failed:`, error);
-                    addAIMessage(`❌ Command failed: ${error}`, false, 'error');
-                    return;
-                }
-            }
-
-            const result = JSON.parse(await getSummary(JSON.stringify(plan)));
-
-            if (result.achieve) {
-                addAIMessage(
-                    `✅ Goal achieved! Summary: ${result.summary}`,
-                    false,
-                    'ai-summary'
-                );
-                return;
-            } else {
-                // Remove unexecuted steps from the plan
-                plan.steps = plan.steps.filter((step: any) => step.executed);
-
-                let newplan = JSON.parse(await getPlan(goal, plan));
-                // join the newplan
-                plan = { ...plan, ...newplan };
-            }
-
-            // if (success) {
-            //     const summary = JSON.parse(
-            //         await getSummary(JSON.stringify(plan))
-            //     );
-            //     if (summary) {
-            //         addAIMessage(
-            //             `✅ Summary: ${summary.summary}.`,
-            //             false,
-            //             'ai-summary'
-            //         );
-            //     }
-            //     return;
-            // } else {
-            //     // Remove unexecuted steps from the plan
-            //     plan.steps = plan.steps.filter((step: any) => step.executed);
-
-            //     let newplan = JSON.parse(await getPlan(goal, plan));
-            //     // join the newplan
-            //     plan = { ...plan, ...newplan };
-            // }
-        } catch (err) {
-            addAIMessage(
-                `❌ Error parsing AI response: ${err}`,
-                false,
-                'error'
-            );
+        if (!response.ok) {
+            const errorData = await response.json();
+            addAIMessage(`❌ Error: ${errorData.error || 'Failed to execute Jarvis request'}`, false, 'error');
             return;
         }
-    } while (retry-- > 0);
+
+        // Handle Server-Sent Events for real-time updates
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+
+        if (!reader) {
+            addAIMessage('❌ Error: Unable to read response stream', false, 'error');
+            return;
+        }
+
+        let buffer = '';
+        
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || ''; // Keep the incomplete line in buffer
+
+            for (const line of lines) {
+                if (line.startsWith('event: ') || line.startsWith('data: ')) {
+                    const eventType = line.startsWith('event: ') ? line.slice(7) : null;
+                    const dataLine = line.startsWith('data: ') ? line.slice(6) : null;
+                    
+                    if (dataLine) {
+                        try {
+                            const data = JSON.parse(dataLine);
+                            
+                            switch (eventType) {
+                                case 'plan':
+                                    addAIMessage(`🤖 Jarvis: ${data.explanation}`, false, 'ai-plan');
+                                    break;
+                                case 'command':
+                                    addAIMessage(`🔧 Executing command: \`${data.command}\``, false, 'command');
+                                    break;
+                                case 'command_result':
+                                    // Optionally show command results
+                                    console.log(`Command "${data.command}" completed with exit code: ${data.exitCode}`);
+                                    break;
+                                case 'message':
+                                    addAIMessage(data.content, false, data.type || 'normal');
+                                    break;
+                                case 'success':
+                                    addAIMessage(data.message, false, 'ai-summary');
+                                    break;
+                                case 'error':
+                                    addAIMessage(`❌ ${data.message}`, false, 'error');
+                                    break;
+                            }
+                        } catch (e) {
+                            console.warn('Failed to parse SSE data:', dataLine);
+                        }
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        addAIMessage(`❌ Error communicating with Jarvis: ${error}`, false, 'error');
+    }
 }
 
 document.addEventListener('keydown', (e: KeyboardEvent) => {

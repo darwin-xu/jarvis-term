@@ -30,6 +30,25 @@ interface CommandLogEntry {
     sessionId: string;
 }
 
+interface JarvisPlan {
+    explanation: string;
+    steps: JarvisStep[];
+}
+
+interface JarvisStep {
+    cmd: string;
+    output: string;
+    exit: number;
+    executed: boolean;
+    expectedDuration: number;
+    dependsOnPreviousOutput: boolean;
+}
+
+interface JarvisSummary {
+    achieve: boolean;
+    summary: string;
+}
+
 const APP_PASSWORD = process.env.APP_PASSWORD;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
@@ -48,24 +67,12 @@ app.use(
     })
 );
 
-// Custom route for index.html with injected data
+// Custom route for index.html 
 app.get('/', (req: Request, res: Response) => {
     const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
 
     try {
         let html = fs.readFileSync(indexPath, 'utf8');
-
-        // Inject the OPENAI_API_KEY into the HTML
-        const scriptInjection = `
-        <script>
-            window.APP_CONFIG = {
-                OPENAI_API_KEY: ${JSON.stringify(OPENAI_API_KEY || '')}
-            };
-        </script>`;
-
-        // Insert before the closing </head> tag
-        html = html.replace('</head>', `${scriptInjection}\n    </head>`);
-
         res.send(html);
     } catch (error) {
         log('Error serving index.html:', error);
@@ -171,6 +178,406 @@ app.post('/api/command-log', (req: any, res: any) => {
     } catch (error) {
         log('Error saving command log:', error);
         res.status(500).json({ error: 'Failed to save command log' });
+    }
+});
+
+// AI-related schemas and functions
+const planSchema = {
+    type: 'json_schema',
+    name: 'AgentPlan',
+    strict: true,
+    schema: {
+        type: 'object',
+        properties: {
+            explanation: {
+                type: 'string',
+                description:
+                    'A human-readable explanation of the plan or next steps.',
+            },
+            steps: {
+                type: 'array',
+                description: 'Ordered list of commands to be executed.',
+                items: {
+                    type: 'object',
+                    properties: {
+                        cmd: {
+                            type: 'string',
+                            description: 'The shell command to execute.',
+                        },
+                        output: {
+                            type: 'string',
+                            description:
+                                'Captured standard output or error from execution. Can be empty before execution.',
+                        },
+                        exit: {
+                            type: 'integer',
+                            description:
+                                'Exit code from command execution (0 means success).',
+                        },
+                        executed: {
+                            type: 'boolean',
+                            description: 'Whether this step has been executed.',
+                        },
+                        expectedDuration: {
+                            type: 'integer',
+                            description:
+                                'Expected duration in milliseconds for this command to execute.',
+                        },
+                        dependsOnPreviousOutput: {
+                            type: 'boolean',
+                            description:
+                                'Whether this command has arguments that depend on the output of previous commands.',
+                        },
+                    },
+                    required: [
+                        'cmd',
+                        'output',
+                        'exit',
+                        'executed',
+                        'expectedDuration',
+                        'dependsOnPreviousOutput',
+                    ],
+                    additionalProperties: false,
+                },
+            },
+        },
+        required: ['explanation', 'steps'],
+        additionalProperties: false,
+    },
+};
+
+const summarySchema = {
+    type: 'json_schema',
+    name: 'AgentPlanSummary',
+    strict: true,
+    schema: {
+        type: 'object',
+        properties: {
+            achieve: {
+                type: 'boolean',
+                description: 'Whether the goal has been achieved.',
+            },
+            summary: {
+                type: 'string',
+                description:
+                    'Human-readable summary of the overall execution outcome.',
+            },
+        },
+        required: ['achieve', 'summary'],
+        additionalProperties: false,
+    },
+};
+
+const planInstruction = `You are an AI agent designed to help users by providing the correct command lines to execute in a Linux terminal.
+An autobot will execute the Linux commands and collect the output.
+You will be given a goal from the user.
+You will be provided with a history of the plan and the executed results.
+You need to generate the following plan based on that information.
+Briefly describe what you are going to do in the "explanation" field in the JSON section.
+List all precise shell commands in the "steps" field in the JSON section.
+If a command's arguments depend on the output of previous commands, mark it as "dependsOnPreviousOutput" and provide placeholders for the command's arguments.`;
+
+const summaryInstruction = `You are an AI agent designed to help users by providing the correct command lines to execute in a Linux terminal.
+Now the plan has been executed with result.
+Please determine if the goal has been achieved based on the provided plan and execution results.
+Please generate a summary if the goal has been achieved.`;
+
+async function getPlan(goal: string, plan: JarvisPlan | null = null): Promise<string> {
+    let prompt = [
+        { role: 'system', content: planInstruction },
+        {
+            role: 'user',
+            content: plan
+                ? `The goal is: ${goal}. The result of the executed plan is: ${JSON.stringify(plan)}. ` +
+                  `If the goal is not achieved, please provide a new plan to achieve this goal.`
+                : `The goal is: ${goal}. Please provide a plan to achieve this goal.`,
+        },
+    ];
+    
+    try {
+        const response = await fetch(`http://35.234.22.51:8080/v1/responses`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${OPENAI_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: 'gpt-4.1-nano',
+                input: prompt,
+                text: {
+                    format: planSchema,
+                },
+            }),
+        });
+        
+        if (!response.ok) {
+            return `Error: Failed to get response from OpenAI (${response.status})`;
+        }
+        
+        const data = await response.json() as any;
+        return data.output?.[0].content?.[0]?.text;
+    } catch (err) {
+        return `Error: ${err}`;
+    }
+}
+
+async function getSummary(result: string): Promise<string> {
+    let prompt = [
+        { role: 'system', content: summaryInstruction },
+        { role: 'user', content: `The execution result is: ${result}` },
+    ];
+    
+    const response = await fetch(`http://35.234.22.51:8080/v1/responses`, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            model: 'gpt-4.1-nano',
+            input: prompt,
+            text: {
+                format: summarySchema,
+            },
+        }),
+    });
+    
+    if (!response.ok) {
+        throw new Error(
+            `Failed to get response from OpenAI (${response.status})`
+        );
+    }
+    
+    const data = await response.json() as any;
+    return data.output?.[0].content?.[0]?.text;
+}
+
+async function executeCommandOnSession(sessionId: string, command: string): Promise<{ output: string; exitCode: number }> {
+    return new Promise((resolve, reject) => {
+        const session = sessions.get(sessionId);
+        if (!session || !session.stream) {
+            reject(new Error('Session not found or not connected'));
+            return;
+        }
+
+        let outputBuffer = '';
+        let commandStartTime = Date.now();
+        let isExecuting = true;
+        
+        // Create a temporary data handler for this command
+        const originalOnData = session.onData;
+        let commandTimeout: NodeJS.Timeout;
+        
+        const finishExecution = (exitCode: number = 0, isTimeout: boolean = false) => {
+            if (!isExecuting) return;
+            isExecuting = false;
+            
+            // Clear timeout
+            if (commandTimeout) {
+                clearTimeout(commandTimeout);
+            }
+            
+            // Restore original data handler
+            if (originalOnData) {
+                session.onData = originalOnData;
+                session.stream.removeAllListeners('data');
+                session.stream.on('data', originalOnData);
+            }
+            
+            // Clean output by removing ANSI escape codes
+            let cleanOutput = outputBuffer
+                .replace(/\x1b\[[0-9;]*m/g, '') // Remove ANSI escape codes
+                .replace(/\r\n/g, '\n')
+                .replace(/\r/g, '\n')
+                .trim();
+            
+            resolve({ output: cleanOutput, exitCode });
+        };
+
+        // Set up command timeout (60 seconds)
+        commandTimeout = setTimeout(() => {
+            finishExecution(-1, true);
+        }, 60000);
+
+        // Set up data handler to capture output
+        const commandDataHandler = (data: Buffer) => {
+            const text = data.toString('utf8');
+            outputBuffer += text;
+            
+            // Also send to original handler so WebSocket clients still see output
+            if (originalOnData) {
+                originalOnData(data);
+            }
+            
+            // Check for command prompt patterns to detect completion
+            const promptPatterns = [
+                /\$ $/m, /# $/m, /> $/m, /\] $/m, /% $/m, /➜ /m, /❯ /m,
+                /\$\s*$/m, /#\s*$/m, /bash-[\d\.]+-\$ $/m, /zsh-[\d\.]+-% $/m,
+            ];
+            
+            const hasPrompt = promptPatterns.some(pattern => pattern.test(text));
+            if (hasPrompt) {
+                setTimeout(() => {
+                    if (isExecuting) {
+                        // Get exit code by sending 'echo $?' command
+                        const exitCodeCommand = 'echo $?\n';
+                        let exitCodeBuffer = '';
+                        let gotExitCode = false;
+                        
+                        const exitCodeHandler = (exitData: Buffer) => {
+                            if (gotExitCode) return;
+                            const exitText = exitData.toString('utf8');
+                            exitCodeBuffer += exitText;
+                            
+                            // Look for the exit code in the output
+                            const lines = exitCodeBuffer.split('\n');
+                            for (const line of lines) {
+                                const trimmed = line.trim();
+                                if (/^\d+$/.test(trimmed)) {
+                                    gotExitCode = true;
+                                    session.stream.removeListener('data', exitCodeHandler);
+                                    finishExecution(parseInt(trimmed, 10));
+                                    return;
+                                }
+                            }
+                        };
+                        
+                        session.stream.on('data', exitCodeHandler);
+                        session.stream.write(exitCodeCommand);
+                        
+                        // Fallback timeout for exit code check
+                        setTimeout(() => {
+                            if (!gotExitCode) {
+                                session.stream.removeListener('data', exitCodeHandler);
+                                finishExecution(0); // Assume success if we can't get exit code
+                            }
+                        }, 2000);
+                    }
+                }, 100);
+            }
+        };
+        
+        // Replace the data handler temporarily
+        session.onData = commandDataHandler;
+        session.stream.removeAllListeners('data');
+        session.stream.on('data', commandDataHandler);
+        
+        // Send the command
+        const commandToSend = command.trim() + '\n';
+        session.stream.write(commandToSend);
+    });
+}
+
+// Main Jarvis execution endpoint
+app.post('/api/jarvis-execute', async (req: any, res: any) => {
+    if (req.cookies.auth !== '1') {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    try {
+        const { goal, sessionId } = req.body;
+        
+        if (!goal) {
+            return res.status(400).json({ error: 'Goal is required' });
+        }
+        
+        if (!sessionId) {
+            return res.status(400).json({ error: 'Session ID is required' });
+        }
+        
+        const session = sessions.get(sessionId);
+        if (!session) {
+            return res.status(400).json({ error: 'Invalid session ID' });
+        }
+
+        log(`Jarvis execute request: ${goal} for session ${sessionId}`);
+        
+        // Set up SSE for real-time updates
+        res.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+        });
+
+        const sendEvent = (type: string, data: any) => {
+            res.write(`event: ${type}\n`);
+            res.write(`data: ${JSON.stringify(data)}\n\n`);
+        };
+        
+        try {
+            let plan: JarvisPlan = JSON.parse(await getPlan(goal));
+            let retry = 30;
+            
+            do {
+                if (!plan || typeof plan !== 'object' || !plan.explanation || !plan.steps || !Array.isArray(plan.steps)) {
+                    sendEvent('error', { message: 'Invalid AI response format' });
+                    res.end();
+                    return;
+                }
+
+                sendEvent('plan', { explanation: plan.explanation });
+
+                let success = true;
+                for (const step of plan.steps) {
+                    if (step.executed) continue;
+                    if (step.dependsOnPreviousOutput) {
+                        sendEvent('message', { 
+                            content: `🔄 Command depends on previous command's output: ${step.cmd}.`,
+                            type: 'ai-plan'
+                        });
+                        continue;
+                    }
+
+                    try {
+                        sendEvent('command', { command: step.cmd });
+                        const result = await executeCommandOnSession(sessionId, step.cmd);
+                        step.output = result.output;
+                        step.exit = result.exitCode;
+                        step.executed = true;
+
+                        if (step.exit !== 0) {
+                            success = false;
+                            break;
+                        }
+
+                        sendEvent('command_result', { 
+                            command: step.cmd, 
+                            output: result.output,
+                            exitCode: result.exitCode
+                        });
+                    } catch (error) {
+                        sendEvent('error', { message: `Command failed: ${error}` });
+                        res.end();
+                        return;
+                    }
+                }
+
+                const summaryResult: JarvisSummary = JSON.parse(await getSummary(JSON.stringify(plan)));
+
+                if (summaryResult.achieve) {
+                    sendEvent('success', { 
+                        message: `✅ Goal achieved! Summary: ${summaryResult.summary}` 
+                    });
+                    res.end();
+                    return;
+                } else {
+                    // Remove unexecuted steps and get new plan
+                    plan.steps = plan.steps.filter(step => step.executed);
+                    const newPlan: JarvisPlan = JSON.parse(await getPlan(goal, plan));
+                    plan = { ...plan, ...newPlan };
+                }
+            } while (retry-- > 0);
+            
+            sendEvent('error', { message: 'Maximum retry attempts reached' });
+        } catch (error) {
+            sendEvent('error', { message: `Error: ${error}` });
+        }
+        
+        res.end();
+    } catch (error) {
+        log('Error in jarvis-execute:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
