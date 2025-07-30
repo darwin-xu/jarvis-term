@@ -30,7 +30,7 @@ interface CommandLogEntry {
     sessionId: string;
 }
 
-const APP_PASSWORD = process.env.APP_PASSWORD;
+const APP_PASSWORD = process.env.APP_PASSWORD ? process.env.APP_PASSWORD : '111111';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 const baseApp = express();
