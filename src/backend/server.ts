@@ -30,7 +30,9 @@ interface CommandLogEntry {
     sessionId: string;
 }
 
-const APP_PASSWORD = process.env.APP_PASSWORD ? process.env.APP_PASSWORD : '111111';
+const APP_PASSWORD = process.env.APP_PASSWORD
+    ? process.env.APP_PASSWORD
+    : '111111';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 const baseApp = express();
@@ -407,6 +409,12 @@ app.ws('/terminal', (ws: WebSocket, req: any) => {
         });
 });
 
-app.listen(PORT, () => {
-    log(`Web terminal server running at http://localhost:${PORT}`);
-});
+// Only start the server if this file is being run directly (not imported)
+if (require.main === module) {
+    app.listen(PORT, () => {
+        log(`Web terminal server running at http://localhost:${PORT}`);
+    });
+}
+
+// Export the app for testing
+export { app };
