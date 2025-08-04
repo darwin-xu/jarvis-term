@@ -59,18 +59,43 @@ describe('WebSocket Integration', () => {
         });
 
         it('should handle command input', done => {
+            const authMessage = JSON.stringify({
+                type: 'auth',
+                password: 'test-password',
+            });
+
             const commandMessage = JSON.stringify({
                 type: 'data',
                 data: 'echo "test"\n',
             });
 
             mockWs.addEventListener('open', () => {
+                let isAuthenticated = false;
+
                 mockWs.addEventListener('message', (event: any) => {
-                    // Command echo back indicates successful processing
-                    done();
+                    try {
+                        const data = JSON.parse(event.data || event);
+
+                        // First handle authentication
+                        if (data.type === 'ready' && !isAuthenticated) {
+                            isAuthenticated = true;
+                            // Send command after authentication
+                            mockWs.send(commandMessage);
+                        }
+                    } catch (e) {
+                        // Handle non-JSON messages (command echoes)
+                        if (
+                            isAuthenticated &&
+                            typeof (event.data || event) === 'string'
+                        ) {
+                            // Command echo back indicates successful processing
+                            done();
+                        }
+                    }
                 });
 
-                mockWs.send(commandMessage);
+                // Start with authentication
+                mockWs.send(authMessage);
             });
         });
     });
@@ -78,6 +103,12 @@ describe('WebSocket Integration', () => {
     describe('Session Management', () => {
         it('should create new session with unique ID', done => {
             mockWs.addEventListener('open', () => {
+                // Send auth first to get ready message
+                const authMessage = JSON.stringify({
+                    type: 'auth',
+                    password: 'test-password',
+                });
+
                 mockWs.addEventListener('message', (event: any) => {
                     const data = JSON.parse(event.data || event);
                     if (data.type === 'ready') {
@@ -85,6 +116,8 @@ describe('WebSocket Integration', () => {
                         done();
                     }
                 });
+
+                mockWs.send(authMessage);
             });
         });
 
@@ -95,6 +128,12 @@ describe('WebSocket Integration', () => {
             );
 
             reconnectWs.addEventListener('open', () => {
+                // Send auth to get ready message with sessionId
+                const authMessage = JSON.stringify({
+                    type: 'auth',
+                    password: 'test-password',
+                });
+
                 reconnectWs.addEventListener('message', (event: any) => {
                     const data = JSON.parse(event.data || event);
                     if (data.type === 'ready') {
@@ -102,6 +141,8 @@ describe('WebSocket Integration', () => {
                         done();
                     }
                 });
+
+                reconnectWs.send(authMessage);
             });
         });
 

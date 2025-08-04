@@ -160,9 +160,18 @@ export class MockWebSocket extends EventEmitter {
 
     readyState: number = MockWebSocket.CONNECTING;
     private _listeners: Map<string, Function[]> = new Map();
+    private _url: string;
+    private _isAuthenticated: boolean = false;
+    private _sessionId: string;
 
     constructor(url: string) {
         super();
+        this._url = url;
+
+        // Extract sessionId from URL if present
+        const urlParams = new URLSearchParams(url.split('?')[1] || '');
+        this._sessionId =
+            urlParams.get('sessionId') || this.generateSessionId();
 
         setTimeout(() => {
             this.readyState = MockWebSocket.OPEN;
@@ -170,15 +179,88 @@ export class MockWebSocket extends EventEmitter {
         }, 10);
     }
 
+    private generateSessionId(): string {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(
+            /[xy]/g,
+            function (c) {
+                const r = (Math.random() * 16) | 0;
+                const v = c === 'x' ? r : (r & 0x3) | 0x8;
+                return v.toString(16);
+            }
+        );
+    }
+
     send(data: string): void {
         if (this.readyState !== MockWebSocket.OPEN) {
             throw new Error('WebSocket is not open');
         }
 
-        // Echo back for testing
+        // Simulate server responses based on message type
         setTimeout(() => {
-            this.emit('message', data);
+            try {
+                const message = JSON.parse(data);
+                this.handleMessage(message);
+            } catch (e) {
+                // Handle malformed JSON gracefully
+                this.emit(
+                    'message',
+                    JSON.stringify({
+                        type: 'error',
+                        message: 'Invalid JSON format',
+                    })
+                );
+            }
         }, 5);
+    }
+
+    private handleMessage(message: any): void {
+        switch (message.type) {
+            case 'auth':
+                if (message.password === 'test-password') {
+                    this._isAuthenticated = true;
+                    this.emit(
+                        'message',
+                        JSON.stringify({
+                            type: 'ready',
+                            sessionId: this._sessionId,
+                        })
+                    );
+                } else {
+                    this.emit(
+                        'message',
+                        JSON.stringify({
+                            type: 'error',
+                            message: 'Authentication failed',
+                        })
+                    );
+                }
+                break;
+
+            case 'resize':
+                if (this._isAuthenticated) {
+                    // Simulate successful resize
+                    this.emit(
+                        'message',
+                        JSON.stringify({
+                            type: 'resize_ack',
+                            cols: message.cols,
+                            rows: message.rows,
+                        })
+                    );
+                }
+                break;
+
+            case 'data':
+                if (this._isAuthenticated) {
+                    // Echo back the command data
+                    this.emit('message', message.data);
+                }
+                break;
+
+            default:
+                // Echo back unknown messages
+                this.emit('message', JSON.stringify(message));
+        }
     }
 
     close(): void {

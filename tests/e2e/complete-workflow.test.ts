@@ -1,9 +1,17 @@
 import { MockWebSocket, MockSSHClient, MockAIService } from '../mocks';
+import { getPlan, getSummary } from '../../src/frontend/ai-service';
 
 // Mock all external dependencies
 jest.mock('ws');
 jest.mock('ssh2', () => ({ Client: MockSSHClient }));
 global.fetch = jest.fn();
+
+// Mock window.APP_CONFIG for browser environment
+(global as any).window = {
+    APP_CONFIG: {
+        OPENAI_API_KEY: 'test-api-key',
+    },
+};
 
 describe('End-to-End Scenarios', () => {
     const mockFetch = fetch as jest.MockedFunction<typeof fetch>;
@@ -17,42 +25,33 @@ describe('End-to-End Scenarios', () => {
         it('should execute simple file listing task', async () => {
             // Mock AI response
             const planResponse = {
-                output: [
+                content: [
                     {
-                        content: [
-                            {
-                                text: JSON.stringify({
-                                    explanation:
-                                        'List files in current directory',
-                                    steps: [
-                                        {
-                                            cmd: 'ls -la',
-                                            output: '',
-                                            exit: 0,
-                                            executed: false,
-                                            expectedDuration: 1000,
-                                            dependsOnPreviousOutput: false,
-                                        },
-                                    ],
-                                }),
-                            },
-                        ],
+                        text: JSON.stringify({
+                            explanation: 'List files in current directory',
+                            steps: [
+                                {
+                                    cmd: 'ls -la',
+                                    output: '',
+                                    exit: 0,
+                                    executed: false,
+                                    expectedDuration: 1000,
+                                    dependsOnPreviousOutput: false,
+                                },
+                            ],
+                        }),
                     },
                 ],
             };
 
             const summaryResponse = {
-                output: [
+                content: [
                     {
-                        content: [
-                            {
-                                text: JSON.stringify({
-                                    achieve: true,
-                                    summary:
-                                        'Successfully listed files in the directory',
-                                }),
-                            },
-                        ],
+                        text: JSON.stringify({
+                            achieve: true,
+                            summary:
+                                'Successfully listed files in the directory',
+                        }),
                     },
                 ],
             };
@@ -68,11 +67,6 @@ describe('End-to-End Scenarios', () => {
                 } as Response);
 
             // Simulate the workflow
-            const {
-                getPlan,
-                getSummary,
-            } = require('../../src/frontend/client');
-
             // 1. Get plan from AI
             const planResult = await getPlan('list files in current directory');
             const plan = JSON.parse(planResult);
@@ -96,33 +90,29 @@ describe('End-to-End Scenarios', () => {
 
         it('should handle multi-step dependency workflow', async () => {
             const planResponse = {
-                output: [
+                content: [
                     {
-                        content: [
-                            {
-                                text: JSON.stringify({
-                                    explanation: 'Find and count Python files',
-                                    steps: [
-                                        {
-                                            cmd: "find . -name '*.py'",
-                                            output: '',
-                                            exit: 0,
-                                            executed: false,
-                                            expectedDuration: 2000,
-                                            dependsOnPreviousOutput: false,
-                                        },
-                                        {
-                                            cmd: "find . -name '*.py' | wc -l",
-                                            output: '',
-                                            exit: 0,
-                                            executed: false,
-                                            expectedDuration: 1000,
-                                            dependsOnPreviousOutput: true,
-                                        },
-                                    ],
-                                }),
-                            },
-                        ],
+                        text: JSON.stringify({
+                            explanation: 'Find and count Python files',
+                            steps: [
+                                {
+                                    cmd: "find . -name '*.py'",
+                                    output: '',
+                                    exit: 0,
+                                    executed: false,
+                                    expectedDuration: 2000,
+                                    dependsOnPreviousOutput: false,
+                                },
+                                {
+                                    cmd: "find . -name '*.py' | wc -l",
+                                    output: '',
+                                    exit: 0,
+                                    executed: false,
+                                    expectedDuration: 1000,
+                                    dependsOnPreviousOutput: true,
+                                },
+                            ],
+                        }),
                     },
                 ],
             };
@@ -131,8 +121,6 @@ describe('End-to-End Scenarios', () => {
                 ok: true,
                 json: async () => planResponse,
             } as Response);
-
-            const { getPlan } = require('../../src/frontend/client');
 
             const planResult = await getPlan('find and count python files');
             const plan = JSON.parse(planResult);
@@ -152,42 +140,32 @@ describe('End-to-End Scenarios', () => {
 
         it('should handle error scenarios gracefully', async () => {
             const planResponse = {
-                output: [
+                content: [
                     {
-                        content: [
-                            {
-                                text: JSON.stringify({
-                                    explanation:
-                                        'Execute a command that will fail',
-                                    steps: [
-                                        {
-                                            cmd: 'nonexistent-command',
-                                            output: '',
-                                            exit: 0,
-                                            executed: false,
-                                            expectedDuration: 1000,
-                                            dependsOnPreviousOutput: false,
-                                        },
-                                    ],
-                                }),
-                            },
-                        ],
+                        text: JSON.stringify({
+                            explanation: 'Execute a command that will fail',
+                            steps: [
+                                {
+                                    cmd: 'nonexistent-command',
+                                    output: '',
+                                    exit: 0,
+                                    executed: false,
+                                    expectedDuration: 1000,
+                                    dependsOnPreviousOutput: false,
+                                },
+                            ],
+                        }),
                     },
                 ],
             };
 
             const summaryResponse = {
-                output: [
+                content: [
                     {
-                        content: [
-                            {
-                                text: JSON.stringify({
-                                    achieve: false,
-                                    summary:
-                                        'Command failed: command not found',
-                                }),
-                            },
-                        ],
+                        text: JSON.stringify({
+                            achieve: false,
+                            summary: 'Command failed: command not found',
+                        }),
                     },
                 ],
             };
@@ -201,11 +179,6 @@ describe('End-to-End Scenarios', () => {
                     ok: true,
                     json: async () => summaryResponse,
                 } as Response);
-
-            const {
-                getPlan,
-                getSummary,
-            } = require('../../src/frontend/client');
 
             const planResult = await getPlan('run nonexistent command');
             const plan = JSON.parse(planResult);
@@ -225,7 +198,7 @@ describe('End-to-End Scenarios', () => {
     });
 
     describe('Session Persistence', () => {
-        it('should maintain session across WebSocket reconnections', () => {
+        it('should maintain session across WebSocket reconnections', done => {
             const sessionId = 'test-session-123';
 
             // First connection
@@ -233,40 +206,48 @@ describe('End-to-End Scenarios', () => {
                 `ws://localhost:3000/terminal?sessionId=${sessionId}`
             );
 
-            return new Promise<void>(resolve => {
-                ws1.addEventListener('open', () => {
-                    ws1.addEventListener('message', (event: any) => {
-                        const data = JSON.parse(event.data || event);
-                        if (data.type === 'ready') {
-                            expect(data.sessionId).toBe(sessionId);
-
-                            // Close first connection
-                            ws1.close();
-
-                            // Create second connection with same session ID
-                            const ws2 = new MockWebSocket(
-                                `ws://localhost:3000/terminal?sessionId=${sessionId}`
-                            );
-
-                            ws2.addEventListener('open', () => {
-                                ws2.addEventListener(
-                                    'message',
-                                    (event2: any) => {
-                                        const data2 = JSON.parse(
-                                            event2.data || event2
-                                        );
-                                        if (data2.type === 'ready') {
-                                            expect(data2.sessionId).toBe(
-                                                sessionId
-                                            );
-                                            resolve();
-                                        }
-                                    }
-                                );
-                            });
-                        }
-                    });
+            ws1.addEventListener('open', () => {
+                // Send authentication first
+                const authMessage = JSON.stringify({
+                    type: 'auth',
+                    password: 'test-password',
                 });
+
+                ws1.addEventListener('message', (event: any) => {
+                    const data = JSON.parse(event.data || event);
+                    if (data.type === 'ready') {
+                        expect(data.sessionId).toBe(sessionId);
+
+                        // Close first connection
+                        ws1.close();
+
+                        // Create second connection with same session ID
+                        const ws2 = new MockWebSocket(
+                            `ws://localhost:3000/terminal?sessionId=${sessionId}`
+                        );
+
+                        ws2.addEventListener('open', () => {
+                            // Authenticate the second connection
+                            const authMessage2 = JSON.stringify({
+                                type: 'auth',
+                                password: 'test-password',
+                            });
+
+                            ws2.addEventListener('message', (event2: any) => {
+                                const data2 = JSON.parse(event2.data || event2);
+                                if (data2.type === 'ready') {
+                                    expect(data2.sessionId).toBe(sessionId);
+                                    ws2.close();
+                                    done();
+                                }
+                            });
+
+                            ws2.send(authMessage2);
+                        });
+                    }
+                });
+
+                ws1.send(authMessage);
             });
         });
     });
@@ -275,35 +256,29 @@ describe('End-to-End Scenarios', () => {
         it('should handle multiple concurrent requests', async () => {
             const promises = Array.from({ length: 5 }, (_, i) => {
                 const planResponse = {
-                    output: [
+                    content: [
                         {
-                            content: [
-                                {
-                                    text: JSON.stringify({
-                                        explanation: `Task ${i + 1}`,
-                                        steps: [
-                                            {
-                                                cmd: `echo "task ${i + 1}"`,
-                                                output: '',
-                                                exit: 0,
-                                                executed: false,
-                                                expectedDuration: 100,
-                                                dependsOnPreviousOutput: false,
-                                            },
-                                        ],
-                                    }),
-                                },
-                            ],
+                            text: JSON.stringify({
+                                explanation: `Task ${i + 1}`,
+                                steps: [
+                                    {
+                                        cmd: `echo "task ${i + 1}"`,
+                                        output: '',
+                                        exit: 0,
+                                        executed: false,
+                                        expectedDuration: 100,
+                                        dependsOnPreviousOutput: false,
+                                    },
+                                ],
+                            }),
                         },
                     ],
                 };
-
                 mockFetch.mockResolvedValueOnce({
                     ok: true,
                     json: async () => planResponse,
                 } as Response);
 
-                const { getPlan } = require('../../src/frontend/client');
                 return getPlan(`task ${i + 1}`);
             });
 
@@ -326,17 +301,13 @@ describe('End-to-End Scenarios', () => {
                                 resolve({
                                     ok: true,
                                     json: async () => ({
-                                        output: [
+                                        content: [
                                             {
-                                                content: [
-                                                    {
-                                                        text: JSON.stringify({
-                                                            explanation:
-                                                                'Delayed response',
-                                                            steps: [],
-                                                        }),
-                                                    },
-                                                ],
+                                                text: JSON.stringify({
+                                                    explanation:
+                                                        'Delayed response',
+                                                    steps: [],
+                                                }),
                                             },
                                         ],
                                     }),
@@ -345,8 +316,6 @@ describe('End-to-End Scenarios', () => {
                         )
                     )
             );
-
-            const { getPlan } = require('../../src/frontend/client');
 
             const start = Date.now();
             const result = await getPlan('test with delay');
