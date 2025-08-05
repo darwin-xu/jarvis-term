@@ -6,7 +6,13 @@ module.exports = {
     transform: {
         '^.+\\.ts$': 'ts-jest',
     },
-    collectCoverageFrom: ['src/**/*.ts', '!src/**/*.d.ts', '!src/**/index.ts'],
+    // Only collect coverage from backend files, exclude frontend browser code
+    collectCoverageFrom: [
+        'src/backend/**/*.ts',
+        '!src/**/*.d.ts',
+        '!src/**/index.ts',
+        '!src/frontend/**/*', // Exclude frontend files that contain DOM code
+    ],
     coverageDirectory: 'coverage',
     coverageReporters: ['text', 'lcov', 'html'],
     setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
