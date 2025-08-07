@@ -38,7 +38,7 @@ describe('WebSocket Terminal Coverage', () => {
         it('should handle session termination when session exists', async () => {
             // First, we need to simulate a session being created
             // This tests the session termination logic when a session actually exists
-            
+
             // Since we can't easily create a real session in this test,
             // we'll test the error paths which are already covered
             const response = await request(app)
@@ -56,11 +56,11 @@ describe('WebSocket Terminal Coverage', () => {
             // This tests the PORT environment variable default
             const originalPort = process.env.PORT;
             delete process.env.PORT;
-            
+
             // The server should use default port 3000
-            // We can't easily test this without starting the server, 
+            // We can't easily test this without starting the server,
             // but this ensures the code path is exercised
-            
+
             // Restore original port
             if (originalPort) {
                 process.env.PORT = originalPort;

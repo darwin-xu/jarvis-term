@@ -89,7 +89,7 @@ describe('Server Routes', () => {
                 output: 'file1.txt\nfile2.txt',
                 timestamp: '2023-01-01T00:00:00.000Z',
                 executionTime: 1500,
-                sessionId: 'test-session'
+                sessionId: 'test-session',
             };
 
             const response = await request(app)
@@ -101,8 +101,7 @@ describe('Server Routes', () => {
             expect(response.body).toEqual({ ok: true });
             expect(mockFs.writeFileSync).toHaveBeenCalledWith(
                 expect.stringContaining('command-logs.json'),
-                expect.stringContaining(logEntry.command),
-                
+                expect.stringContaining(logEntry.command)
             );
         });
 
@@ -124,10 +123,10 @@ describe('Server Routes', () => {
                     output: 'previous output',
                     timestamp: '2023-01-01T00:00:00.000Z',
                     executionTime: 1000,
-                    sessionId: 'old-session'
-                }
+                    sessionId: 'old-session',
+                },
             ]);
-            
+
             mockFs.existsSync.mockReturnValue(true);
             mockFs.readFileSync.mockReturnValue(existingLogs);
 
@@ -163,9 +162,9 @@ describe('Server Routes', () => {
                 output: `output ${i}`,
                 timestamp: '2023-01-01T00:00:00.000Z',
                 executionTime: 1000,
-                sessionId: 'session'
+                sessionId: 'session',
             }));
-            
+
             mockFs.existsSync.mockReturnValue(true);
             mockFs.readFileSync.mockReturnValue(JSON.stringify(existingLogs));
 
@@ -175,7 +174,7 @@ describe('Server Routes', () => {
                 .send({ command: 'new command' });
 
             expect(response.status).toBe(200);
-            
+
             // Verify that writeFileSync was called and the data doesn't exceed 1000 entries
             const writeCall = mockFs.writeFileSync.mock.calls[0];
             const writtenData = JSON.parse(writeCall[1] as string);
@@ -194,7 +193,9 @@ describe('Server Routes', () => {
                 .send({ command: 'test command' });
 
             expect(response.status).toBe(500);
-            expect(response.body).toEqual({ error: 'Failed to save command log' });
+            expect(response.body).toEqual({
+                error: 'Failed to save command log',
+            });
         });
     });
 
@@ -205,15 +206,17 @@ describe('Server Routes', () => {
             // Instead, test the logic directly
             const APP_PASSWORD = '';
             const reqBody = { password: 'any-password' };
-            
+
             // Simulate the logic from the login endpoint
             if (!APP_PASSWORD) {
-                const result = { 
-                    status: 500, 
-                    body: { error: 'Server password not configured' } 
+                const result = {
+                    status: 500,
+                    body: { error: 'Server password not configured' },
                 };
                 expect(result.status).toBe(500);
-                expect(result.body.error).toBe('Server password not configured');
+                expect(result.body.error).toBe(
+                    'Server password not configured'
+                );
             }
         });
     });
@@ -230,7 +233,7 @@ describe('Server Routes', () => {
         </script>`;
 
             expect(scriptInjection).toContain('test-key');
-            
+
             // Test with empty key
             const emptyKeyInjection = `
         <script>
@@ -238,7 +241,7 @@ describe('Server Routes', () => {
                 OPENAI_API_KEY: ${JSON.stringify('')}
             };
         </script>`;
-            
+
             expect(emptyKeyInjection).toContain('""');
         });
     });

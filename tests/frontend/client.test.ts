@@ -1,6 +1,6 @@
 /**
  * Frontend Client Test Suite
- * 
+ *
  * Tests for the frontend client.ts functionality.
  * Since client.ts is a browser-specific module with DOM dependencies,
  * these tests focus on the testable utility functions and API interactions.
@@ -20,7 +20,7 @@ Object.defineProperty(global, 'window', {
             removeItem: jest.fn(),
         },
     },
-    writable: true
+    writable: true,
 });
 
 describe('Frontend Client', () => {
@@ -35,29 +35,39 @@ describe('Frontend Client', () => {
         it('should use AI utils from shared module', () => {
             // Test that the client can access AI utility functions
             // from the shared ai-utils module
-            const { getPlan, getSummary } = require('../../src/shared/ai-utils');
-            
+            const {
+                getPlan,
+                getSummary,
+            } = require('../../src/shared/ai-utils');
+
             expect(typeof getPlan).toBe('function');
             expect(typeof getSummary).toBe('function');
         });
 
         it('should handle AI plan generation', async () => {
             const mockResponse = {
-                output: [{
-                    content: [{
-                        text: JSON.stringify({
-                            explanation: 'List files in current directory',
-                            steps: [{
-                                cmd: 'ls -la',
-                                output: '',
-                                exit: 0,
-                                executed: false,
-                                expectedDuration: 1000,
-                                dependsOnPreviousOutput: false,
-                            }]
-                        })
-                    }]
-                }]
+                output: [
+                    {
+                        content: [
+                            {
+                                text: JSON.stringify({
+                                    explanation:
+                                        'List files in current directory',
+                                    steps: [
+                                        {
+                                            cmd: 'ls -la',
+                                            output: '',
+                                            exit: 0,
+                                            executed: false,
+                                            expectedDuration: 1000,
+                                            dependsOnPreviousOutput: false,
+                                        },
+                                    ],
+                                }),
+                            },
+                        ],
+                    },
+                ],
             };
 
             mockFetch.mockResolvedValueOnce({
@@ -76,14 +86,18 @@ describe('Frontend Client', () => {
 
         it('should handle AI summary generation', async () => {
             const mockResponse = {
-                output: [{
-                    content: [{
-                        text: JSON.stringify({
-                            achieve: true,
-                            summary: 'Successfully listed files'
-                        })
-                    }]
-                }]
+                output: [
+                    {
+                        content: [
+                            {
+                                text: JSON.stringify({
+                                    achieve: true,
+                                    summary: 'Successfully listed files',
+                                }),
+                            },
+                        ],
+                    },
+                ],
             };
 
             mockFetch.mockResolvedValueOnce({
@@ -106,7 +120,7 @@ describe('Frontend Client', () => {
             } as Response);
 
             const { getPlan } = require('../../src/shared/ai-utils');
-            
+
             try {
                 await getPlan('test goal');
             } catch (error: any) {
@@ -130,7 +144,7 @@ describe('Frontend Client', () => {
             })) as any;
 
             const ws = new WebSocket('wss://test');
-            
+
             expect(ws).toBeDefined();
             expect(ws.send).toBeDefined();
             expect(ws.close).toBeDefined();
@@ -141,12 +155,12 @@ describe('Frontend Client', () => {
             const mockWebSocket = {
                 send: jest.fn(),
                 close: jest.fn(),
-                readyState: 1
+                readyState: 1,
             };
 
             global.WebSocket = jest.fn(() => mockWebSocket) as any;
             const ws = new WebSocket('wss://test');
-            
+
             const command = JSON.stringify({ type: 'data', data: 'ls -la\n' });
             ws.send(command);
 
@@ -157,36 +171,45 @@ describe('Frontend Client', () => {
     describe('Local Storage Integration', () => {
         it('should work with localStorage API', () => {
             const { localStorage } = (global as any).window;
-            
+
             localStorage.setItem('test', 'value');
             expect(localStorage.setItem).toHaveBeenCalledWith('test', 'value');
-            
+
             localStorage.getItem('test');
             expect(localStorage.getItem).toHaveBeenCalledWith('test');
         });
 
         it('should handle session storage', () => {
             const { localStorage } = (global as any).window;
-            
+
             localStorage.setItem('sessionId', 'test-session-123');
-            expect(localStorage.setItem).toHaveBeenCalledWith('sessionId', 'test-session-123');
-            
+            expect(localStorage.setItem).toHaveBeenCalledWith(
+                'sessionId',
+                'test-session-123'
+            );
+
             localStorage.getItem('sessionId');
             expect(localStorage.getItem).toHaveBeenCalledWith('sessionId');
-            
+
             localStorage.removeItem('sessionId');
             expect(localStorage.removeItem).toHaveBeenCalledWith('sessionId');
         });
 
         it('should handle configuration storage', () => {
             const { localStorage } = (global as any).window;
-            
+
             // Test configuration storage
             localStorage.setItem('llm-provider', 'openai');
             localStorage.setItem('custom-api-url', 'https://api.custom.com');
-            
-            expect(localStorage.setItem).toHaveBeenCalledWith('llm-provider', 'openai');
-            expect(localStorage.setItem).toHaveBeenCalledWith('custom-api-url', 'https://api.custom.com');
+
+            expect(localStorage.setItem).toHaveBeenCalledWith(
+                'llm-provider',
+                'openai'
+            );
+            expect(localStorage.setItem).toHaveBeenCalledWith(
+                'custom-api-url',
+                'https://api.custom.com'
+            );
         });
     });
 
@@ -197,13 +220,17 @@ describe('Frontend Client', () => {
                 '/cmd ls -la',
                 '/command echo hello',
                 '/exec pwd',
-                '/run whoami'
+                '/run whoami',
             ];
 
             testCommands.forEach(cmd => {
                 // Test that command parsing would work
-                expect(cmd.startsWith('/cmd') || cmd.startsWith('/command') || 
-                       cmd.startsWith('/exec') || cmd.startsWith('/run')).toBe(true);
+                expect(
+                    cmd.startsWith('/cmd') ||
+                        cmd.startsWith('/command') ||
+                        cmd.startsWith('/exec') ||
+                        cmd.startsWith('/run')
+                ).toBe(true);
             });
         });
 
@@ -213,12 +240,14 @@ describe('Frontend Client', () => {
                 '0\ncommand output',
                 'command output\n0',
                 '1\nerror output',
-                'error message\n1'
+                'error message\n1',
             ];
 
             outputs.forEach(output => {
                 const lines = output.split('\n');
-                const hasExitCode = lines.some(line => line.trim().match(/^\d+$/));
+                const hasExitCode = lines.some(line =>
+                    line.trim().match(/^\d+$/)
+                );
                 expect(typeof hasExitCode).toBe('boolean');
             });
         });
@@ -264,11 +293,11 @@ describe('Frontend Client', () => {
     describe('Configuration Management', () => {
         it('should handle configuration loading', () => {
             const config = {
-                OPENAI_API_KEY: 'test-key-123'
+                OPENAI_API_KEY: 'test-key-123',
             };
 
             (global as any).window.APP_CONFIG = config;
-            
+
             // Test configuration access
             const appConfig = (global as any).window.APP_CONFIG;
             expect(appConfig.OPENAI_API_KEY).toBe('test-key-123');
@@ -276,7 +305,7 @@ describe('Frontend Client', () => {
 
         it('should support multiple LLM providers', () => {
             const providers = ['openai', 'anthropic', 'custom'];
-            
+
             providers.forEach(provider => {
                 expect(typeof provider).toBe('string');
                 expect(provider.length).toBeGreaterThan(0);
@@ -289,7 +318,7 @@ describe('Frontend Client', () => {
             mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
             const { getPlan } = require('../../src/shared/ai-utils');
-            
+
             try {
                 await getPlan('test goal');
             } catch (error: any) {
@@ -300,11 +329,13 @@ describe('Frontend Client', () => {
         it('should handle malformed JSON responses', async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
-                json: async () => { throw new Error('Invalid JSON'); },
+                json: async () => {
+                    throw new Error('Invalid JSON');
+                },
             } as unknown as Response);
 
             const { getPlan } = require('../../src/shared/ai-utils');
-            
+
             try {
                 await getPlan('test goal');
             } catch (error: any) {
@@ -316,15 +347,15 @@ describe('Frontend Client', () => {
             // Temporarily remove API key
             const originalConfig = (global as any).window.APP_CONFIG;
             (global as any).window.APP_CONFIG = {};
-            
+
             const { getPlan } = require('../../src/shared/ai-utils');
-            
+
             try {
                 await getPlan('test goal');
             } catch (error: any) {
                 expect(error.message).toContain('API key');
             }
-            
+
             // Restore original config
             (global as any).window.APP_CONFIG = originalConfig;
         });
@@ -344,7 +375,7 @@ describe('Frontend Client', () => {
             if (ws.onerror) {
                 ws.onerror({
                     message: 'Connection failed',
-                    error: new Error('Network error')
+                    error: new Error('Network error'),
                 } as any);
             }
 
@@ -376,10 +407,10 @@ describe('Frontend Client', () => {
 
         it('should handle session restoration', () => {
             const { localStorage } = (global as any).window;
-            
+
             // Mock stored session
             localStorage.getItem.mockReturnValue('stored-session-456');
-            
+
             const sessionId = localStorage.getItem('sessionId');
             expect(sessionId).toBe('stored-session-456');
         });
@@ -392,10 +423,14 @@ describe('Frontend Client', () => {
                 json: async () => ({ authenticated: true }),
             } as Response);
 
-            const response = await fetch('/auth/check', { credentials: 'include' });
-            const data = await response.json() as { authenticated: boolean };
+            const response = await fetch('/auth/check', {
+                credentials: 'include',
+            });
+            const data = (await response.json()) as { authenticated: boolean };
 
-            expect(mockFetch).toHaveBeenCalledWith('/auth/check', { credentials: 'include' });
+            expect(mockFetch).toHaveBeenCalledWith('/auth/check', {
+                credentials: 'include',
+            });
             expect(data.authenticated).toBe(true);
         });
 
@@ -471,14 +506,16 @@ describe('Frontend Client', () => {
         it('should handle plan schemas correctly', () => {
             const planSchema = {
                 explanation: 'Human readable description of what to achieve',
-                steps: [{
-                    cmd: 'shell command to execute',
-                    output: '',
-                    exit: 0,
-                    executed: false,
-                    expectedDuration: 1000,
-                    dependsOnPreviousOutput: false
-                }]
+                steps: [
+                    {
+                        cmd: 'shell command to execute',
+                        output: '',
+                        exit: 0,
+                        executed: false,
+                        expectedDuration: 1000,
+                        dependsOnPreviousOutput: false,
+                    },
+                ],
             };
 
             expect(planSchema.explanation).toBeDefined();
@@ -490,7 +527,7 @@ describe('Frontend Client', () => {
         it('should handle summary schemas correctly', () => {
             const summarySchema = {
                 achieve: true,
-                summary: 'Brief summary of what was accomplished'
+                summary: 'Brief summary of what was accomplished',
             };
 
             expect(typeof summarySchema.achieve).toBe('boolean');
@@ -516,11 +553,13 @@ describe('Frontend Client', () => {
                 'user@host:~$ ',
                 'root@host:~# ',
                 'command output\n$ ',
-                'error message\n# '
+                'error message\n# ',
             ];
 
             testOutputs.forEach(output => {
-                const hasPrompt = promptPatterns.some(pattern => pattern.test(output));
+                const hasPrompt = promptPatterns.some(pattern =>
+                    pattern.test(output)
+                );
                 expect(typeof hasPrompt).toBe('boolean');
             });
         });
@@ -531,19 +570,20 @@ describe('Frontend Client', () => {
                     command: 'ls -la',
                     output: 'total 16\ndrwxr-xr-x 2 user user 4096 Jan 1 12:00 .',
                     timestamp: new Date().toISOString(),
-                    success: true
+                    success: true,
                 },
                 {
                     command: 'pwd',
                     output: '/home/user',
                     timestamp: new Date().toISOString(),
-                    success: true
-                }
+                    success: true,
+                },
             ];
 
             const formatted = commandContext
-                .map(cmd => 
-                    `Command: ${cmd.command}\nOutput: ${cmd.output.substring(0, 200)}\nStatus: ${cmd.success ? 'Success' : 'Error'}\n`
+                .map(
+                    cmd =>
+                        `Command: ${cmd.command}\nOutput: ${cmd.output.substring(0, 200)}\nStatus: ${cmd.success ? 'Success' : 'Error'}\n`
                 )
                 .join('\n---\n');
 

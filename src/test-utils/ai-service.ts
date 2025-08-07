@@ -27,11 +27,12 @@ const summarySchema = `{"achieve": true/false, "summary": "Brief summary of what
 
 async function getPlan(goal: string, plan: any = null): Promise<string> {
     // In test environment, check for both window config and env vars
-    const OPENAI_API_KEY = 
-        (typeof globalThis !== 'undefined' && (globalThis as any).window?.APP_CONFIG?.OPENAI_API_KEY) ||
-        process.env.OPENAI_API_KEY || 
+    const OPENAI_API_KEY =
+        (typeof globalThis !== 'undefined' &&
+            (globalThis as any).window?.APP_CONFIG?.OPENAI_API_KEY) ||
+        process.env.OPENAI_API_KEY ||
         '';
-    
+
     if (!OPENAI_API_KEY) {
         throw new Error('OpenAI API key not configured');
     }
@@ -46,7 +47,7 @@ async function getPlan(goal: string, plan: any = null): Promise<string> {
                 : `The goal is: ${goal}. Please provide a plan to achieve this goal.`,
         },
     ];
-    
+
     try {
         const response = await fetch(`http://35.234.22.51:8080/v1/responses`, {
             method: 'POST',
@@ -63,12 +64,12 @@ async function getPlan(goal: string, plan: any = null): Promise<string> {
                 },
             }),
         });
-        
+
         if (!response.ok) {
             throw new Error(`AI API error: ${response.status}`);
         }
-        
-        const data = await response.json() as any;
+
+        const data = (await response.json()) as any;
         // For compatibility with test mocks that use Anthropic format
         return data.output?.[0].content?.[0]?.text || data.content?.[0]?.text;
     } catch (error) {
@@ -79,11 +80,12 @@ async function getPlan(goal: string, plan: any = null): Promise<string> {
 
 async function getSummary(result: string): Promise<string> {
     // In test environment, check for both window config and env vars
-    const OPENAI_API_KEY = 
-        (typeof globalThis !== 'undefined' && (globalThis as any).window?.APP_CONFIG?.OPENAI_API_KEY) ||
-        process.env.OPENAI_API_KEY || 
+    const OPENAI_API_KEY =
+        (typeof globalThis !== 'undefined' &&
+            (globalThis as any).window?.APP_CONFIG?.OPENAI_API_KEY) ||
+        process.env.OPENAI_API_KEY ||
         '';
-    
+
     if (!OPENAI_API_KEY) {
         throw new Error('OpenAI API key not configured');
     }
@@ -92,7 +94,7 @@ async function getSummary(result: string): Promise<string> {
         { role: 'system', content: summaryInstruction },
         { role: 'user', content: `The execution result is: ${result}` },
     ];
-    
+
     const response = await fetch(`http://35.234.22.51:8080/v1/responses`, {
         method: 'POST',
         headers: {
@@ -108,15 +110,15 @@ async function getSummary(result: string): Promise<string> {
             },
         }),
     });
-    
+
     if (!response.ok) {
         throw new Error(
             `Failed to get response from OpenAI (${response.status})`
         );
     }
-    
-    const data = await response.json() as any;
-    // For compatibility with test mocks that use Anthropic format  
+
+    const data = (await response.json()) as any;
+    // For compatibility with test mocks that use Anthropic format
     return data.output?.[0].content?.[0]?.text || data.content?.[0]?.text;
 }
 

@@ -34,7 +34,7 @@ describe('Server Internal Functions', () => {
             };
 
             log('Test message', 'with multiple', 'arguments');
-            
+
             expect(logOutput).toContain('Test message');
             expect(logOutput).toContain('with multiple');
             expect(logOutput).toContain('arguments');
@@ -45,14 +45,14 @@ describe('Server Internal Functions', () => {
         it('should handle resize message processing', () => {
             const mockStream = new MockSSHStream();
             const resizeData = { type: 'resize', cols: 120, rows: 30 };
-            
+
             // Simulate the resize handling logic
             if (resizeData.type === 'resize') {
                 const cols = resizeData.cols || 80;
                 const rows = resizeData.rows || 24;
                 mockStream.setWindow(rows, cols);
             }
-            
+
             expect(resizeData.cols).toBe(120);
             expect(resizeData.rows).toBe(30);
         });
@@ -60,36 +60,36 @@ describe('Server Internal Functions', () => {
         it('should handle data message processing', () => {
             const mockStream = new MockSSHStream();
             const dataMessage = { type: 'data', data: 'echo hello' };
-            
+
             let writtenData = '';
             mockStream.write = (data: string) => {
                 writtenData = data;
             };
-            
+
             // Simulate the data handling logic
             if (dataMessage.type === 'data') {
                 mockStream.write(dataMessage.data);
             }
-            
+
             expect(writtenData).toBe('echo hello');
         });
 
         it('should handle raw string message processing', () => {
             const mockStream = new MockSSHStream();
             const rawMessage = 'raw command\n';
-            
+
             let writtenData = '';
             mockStream.write = (data: string) => {
                 writtenData = data;
             };
-            
+
             // Simulate raw message handling
             try {
                 JSON.parse(rawMessage);
             } catch {
                 mockStream.write(rawMessage);
             }
-            
+
             expect(writtenData).toBe('raw command\n');
         });
     });
@@ -105,7 +105,7 @@ describe('Server Internal Functions', () => {
                 rows: 24,
                 host: 'test-host',
                 port: 22,
-                username: 'test-user'
+                username: 'test-user',
             };
 
             let sessionDeleted = false;
@@ -126,14 +126,14 @@ describe('Server Internal Functions', () => {
         it('should handle buffer management', () => {
             const sessionData = {
                 buffer: [] as string[],
-                ws: { sentIndex: 0 }
+                ws: { sentIndex: 0 },
             };
 
             // Simulate buffer data handling
             const onData = (data: Buffer) => {
                 const text = data.toString('utf8');
                 sessionData.buffer.push(text);
-                
+
                 // Buffer size management
                 if (sessionData.buffer.length > 2000) {
                     sessionData.buffer.shift();
@@ -162,7 +162,7 @@ describe('Server Internal Functions', () => {
                 password: 'test-pass',
                 keepaliveInterval: 30000,
                 keepaliveCountMax: 10,
-                readyTimeout: 20000
+                readyTimeout: 20000,
             };
 
             expect(config.keepaliveInterval).toBe(30000);
@@ -174,7 +174,7 @@ describe('Server Internal Functions', () => {
             const shellOptions = {
                 term: 'xterm-256color',
                 cols: 80,
-                rows: 24
+                rows: 24,
             };
 
             expect(shellOptions.term).toBe('xterm-256color');
@@ -189,7 +189,7 @@ describe('Server Internal Functions', () => {
             const mockWs = {
                 sentIndex: 0,
                 readyState: 1,
-                send: jest.fn()
+                send: jest.fn(),
             };
 
             // Simulate sendBuffered logic
@@ -211,33 +211,35 @@ describe('Server Internal Functions', () => {
 
         it('should handle WebSocket ready message', () => {
             const mockWs = {
-                send: jest.fn()
+                send: jest.fn(),
             };
 
             const sessionId = 'test-session-123';
-            
+
             // Simulate ready message sending
-            mockWs.send(JSON.stringify({
-                type: 'ready',
-                sessionId: sessionId,
-                message: 'ready'
-            }));
+            mockWs.send(
+                JSON.stringify({
+                    type: 'ready',
+                    sessionId: sessionId,
+                    message: 'ready',
+                })
+            );
 
             expect(mockWs.send).toHaveBeenCalledWith(
                 JSON.stringify({
                     type: 'ready',
                     sessionId: sessionId,
-                    message: 'ready'
+                    message: 'ready',
                 })
             );
         });
     });
 
     describe('Error handling scenarios', () => {
-        it('should handle SSH stream errors', (done) => {
+        it('should handle SSH stream errors', done => {
             const mockStream = new MockSSHStream();
-            
-            mockStream.on('error', (err) => {
+
+            mockStream.on('error', err => {
                 expect(err).toBeInstanceOf(Error);
                 done();
             });
@@ -245,10 +247,10 @@ describe('Server Internal Functions', () => {
             mockStream.emit('error', new Error('Stream error'));
         });
 
-        it('should handle connection errors', (done) => {
+        it('should handle connection errors', done => {
             const mockClient = new MockSSHClient();
-            
-            mockClient.on('error', (err) => {
+
+            mockClient.on('error', err => {
                 expect(err).toBeInstanceOf(Error);
                 expect(err.message).toBe('Connection failed');
                 done();

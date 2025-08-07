@@ -11,7 +11,7 @@ const mockWebSocket = {
     send: jest.fn(),
     close: jest.fn(),
     on: jest.fn(),
-    readyState: 1
+    readyState: 1,
 };
 
 // Set up environment before importing server
@@ -33,7 +33,7 @@ describe('Server Advanced Coverage Tests', () => {
         it('should exercise session creation and termination flow', async () => {
             // Test session termination after creating a simulated session
             // This would exercise the session.stream.end() and session.conn.end() logic
-            
+
             // First test with no session
             const response1 = await request(app)
                 .post('/sessions/terminate')
@@ -46,29 +46,32 @@ describe('Server Advanced Coverage Tests', () => {
     });
 
     describe('SSH and WebSocket interaction simulation', () => {
-        it('should simulate SSH connection ready flow', (done) => {
+        it('should simulate SSH connection ready flow', done => {
             const mockClient = new MockSSHClient();
             const mockStream = new MockSSHStream();
-            
+
             // Simulate the SSH connection ready event handling
             mockClient.on('ready', () => {
                 // This tests the shell creation logic
-                mockClient.shell({
-                    term: 'xterm-256color',
-                    cols: 80,
-                    rows: 24
-                }, (err: Error | null, stream?: MockSSHStream) => {
-                    expect(err).toBeNull();
-                    expect(stream).toBeInstanceOf(MockSSHStream);
-                    done();
-                });
+                mockClient.shell(
+                    {
+                        term: 'xterm-256color',
+                        cols: 80,
+                        rows: 24,
+                    },
+                    (err: Error | null, stream?: MockSSHStream) => {
+                        expect(err).toBeNull();
+                        expect(stream).toBeInstanceOf(MockSSHStream);
+                        done();
+                    }
+                );
             });
 
             mockClient.connect({
                 host: 'test-host',
                 port: 22,
                 username: 'test-user',
-                password: 'test-pass'
+                password: 'test-pass',
             });
         });
 
@@ -77,7 +80,7 @@ describe('Server Advanced Coverage Tests', () => {
                 send: jest.fn(),
                 on: jest.fn(),
                 close: jest.fn(),
-                readyState: 1
+                readyState: 1,
             };
 
             const mockSession = {
@@ -86,14 +89,14 @@ describe('Server Advanced Coverage Tests', () => {
                 cols: 80,
                 rows: 24,
                 stream: new MockSSHStream(),
-                ws: mockWs
+                ws: mockWs,
             };
 
             // Test resize handling
             const resizeMessage = { type: 'resize', cols: 120, rows: 30 };
             mockSession.cols = resizeMessage.cols;
             mockSession.rows = resizeMessage.rows;
-            
+
             expect(mockSession.cols).toBe(120);
             expect(mockSession.rows).toBe(30);
 
@@ -114,13 +117,13 @@ describe('Server Advanced Coverage Tests', () => {
         it('should simulate buffer management with overflow', () => {
             const mockSession = {
                 buffer: [] as string[],
-                ws: { sentIndex: 0 }
+                ws: { sentIndex: 0 },
             };
 
             // Simulate buffer data accumulation beyond 2000 limit
             for (let i = 0; i < 2010; i++) {
                 mockSession.buffer.push(`line ${i}`);
-                
+
                 // Simulate buffer trimming logic
                 if (mockSession.buffer.length > 2000) {
                     mockSession.buffer.shift();
@@ -135,12 +138,12 @@ describe('Server Advanced Coverage Tests', () => {
     });
 
     describe('SSH Connection Error Scenarios', () => {
-        it('should handle various SSH error conditions', (done) => {
+        it('should handle various SSH error conditions', done => {
             const mockClient = new MockSSHClient();
             let errorCount = 0;
 
             // Test connection error
-            mockClient.on('error', (err) => {
+            mockClient.on('error', err => {
                 expect(err).toBeInstanceOf(Error);
                 errorCount++;
                 if (errorCount === 1) {
@@ -149,23 +152,26 @@ describe('Server Advanced Coverage Tests', () => {
                     readyClient.on('ready', () => {
                         // Mock shell method to return error
                         const originalShell = readyClient.shell;
-                        readyClient.shell = function(options: any, callback: any) {
+                        readyClient.shell = function (
+                            options: any,
+                            callback: any
+                        ) {
                             setTimeout(() => {
                                 callback(new Error('Shell creation failed'));
                             }, 5);
                         };
-                        
+
                         readyClient.shell({}, (err, stream) => {
                             expect(err).not.toBeNull();
                             expect(err!.message).toBe('Shell creation failed');
                             done();
                         });
                     });
-                    
+
                     readyClient.connect({
                         host: 'test-host',
                         username: 'test-user',
-                        password: 'test-pass'
+                        password: 'test-pass',
                     });
                 }
             });
@@ -173,11 +179,11 @@ describe('Server Advanced Coverage Tests', () => {
             mockClient.connect({
                 host: 'invalid-host',
                 username: 'test-user',
-                password: 'test-pass'
+                password: 'test-pass',
             });
         });
 
-        it('should handle SSH stream lifecycle events', (done) => {
+        it('should handle SSH stream lifecycle events', done => {
             const mockStream = new MockSSHStream();
             let eventCount = 0;
 
@@ -203,11 +209,11 @@ describe('Server Advanced Coverage Tests', () => {
                 on: jest.fn(),
                 send: jest.fn(),
                 close: jest.fn(),
-                readyState: 1
+                readyState: 1,
             };
 
             const handlers: { [key: string]: Function } = {};
-            
+
             // Simulate WebSocket event handling
             const addEventHandler = (event: string, handler: Function) => {
                 handlers[event] = handler;
@@ -223,7 +229,7 @@ describe('Server Advanced Coverage Tests', () => {
             if (handlers.close) {
                 handlers.close(1005, Buffer.from(''));
             }
-            
+
             if (handlers.error) {
                 handlers.error(new Error('WebSocket error'));
             }
@@ -242,7 +248,7 @@ describe('Server Advanced Coverage Tests', () => {
             const existingSession = {
                 id: sessionId,
                 buffer: ['line1', 'line2', 'line3', 'line4', 'line5', 'line6'],
-                ws: null
+                ws: null,
             };
             sessions.set(sessionId, existingSession);
 
@@ -252,7 +258,7 @@ describe('Server Advanced Coverage Tests', () => {
                 // Simulate attachToSession with offset
                 const ws = { sentIndex: Math.max(0, offset) };
                 session.ws = ws;
-                
+
                 expect(ws.sentIndex).toBe(5);
                 expect(session.ws).toBe(ws);
             }
@@ -266,7 +272,7 @@ describe('Server Advanced Coverage Tests', () => {
                 { host: process.env.SSH_HOST || 'test-host' },
                 { user: process.env.SSH_USER || 'test-user' },
                 { pass: process.env.SSH_PASS || 'test-pass' },
-                { port: parseInt(process.env.PORT || '22', 10) || 22 }
+                { port: parseInt(process.env.PORT || '22', 10) || 22 },
             ];
 
             expect(configs[0].host).toBe('test-host');
@@ -280,15 +286,20 @@ describe('Server Advanced Coverage Tests', () => {
         it('should test session ID generation and management', () => {
             // Test UUID-like session ID generation
             const generateSessionId = () => {
-                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-                    const r = Math.random() * 16 | 0;
-                    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-                    return v.toString(16);
-                });
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(
+                    /[xy]/g,
+                    c => {
+                        const r = (Math.random() * 16) | 0;
+                        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+                        return v.toString(16);
+                    }
+                );
             };
 
             const sessionId = generateSessionId();
-            expect(sessionId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+            expect(sessionId).toMatch(
+                /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+            );
         });
     });
 
@@ -297,7 +308,7 @@ describe('Server Advanced Coverage Tests', () => {
             const serverConfig = {
                 port: process.env.PORT || 3000,
                 appPassword: process.env.APP_PASSWORD || '111111',
-                openaiApiKey: process.env.OPENAI_API_KEY
+                openaiApiKey: process.env.OPENAI_API_KEY,
             };
 
             expect(serverConfig.port).toBeDefined();
