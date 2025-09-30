@@ -1,4 +1,5 @@
 import 'jest';
+import { resetLogger, setLogLevel } from '../src/shared/logger';
 
 // Global test setup
 beforeEach(() => {
@@ -9,6 +10,12 @@ beforeEach(() => {
     process.env.NODE_ENV = 'test';
     process.env.APP_PASSWORD = 'test-password';
     process.env.OPENAI_API_KEY = 'test-api-key';
+
+    setLogLevel('silent');
+});
+
+afterEach(() => {
+    resetLogger();
 });
 
 // Mock WebSocket globally for tests

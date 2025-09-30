@@ -1,7 +1,11 @@
+import { getLogger } from './logger';
+
 // Shared AI utility functions for both client and tests
 interface AIConfig {
     OPENAI_API_KEY: string;
 }
+
+const logger = getLogger('ai-utils');
 
 // Get configuration from window in browser or environment variables in Node.js
 function getConfig(): AIConfig {
@@ -82,7 +86,7 @@ async function getPlan(goal: string, plan: any = null): Promise<string> {
         const data = (await response.json()) as any;
         return data.output?.[0].content?.[0]?.text;
     } catch (error) {
-        console.error('Error calling AI API:', error);
+        logger.error('Error calling AI API:', error);
         throw error;
     }
 }

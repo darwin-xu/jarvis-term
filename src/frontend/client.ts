@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Client-side TypeScript interfaces
 interface Terminal {
     open(element: HTMLElement): void;

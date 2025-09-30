@@ -1,5 +1,9 @@
+import { getLogger } from '../shared/logger';
+
 // Test-only AI functions that mirror the production implementation
 // This file exists solely for testing and uses the same API as production client.ts
+
+const logger = getLogger('test-utils:ai-service');
 
 const planInstruction = `You're a Jarvis that help Linux users achieve their goals step by step. Maximum 5 commands. Provide the result as a valid JSON object with this structure:
 {
@@ -73,7 +77,7 @@ async function getPlan(goal: string, plan: any = null): Promise<string> {
         // For compatibility with test mocks that use Anthropic format
         return data.output?.[0].content?.[0]?.text || data.content?.[0]?.text;
     } catch (error) {
-        console.error('Error calling AI API:', error);
+        logger.error('Error calling AI API:', error);
         throw error;
     }
 }

@@ -138,6 +138,23 @@ mockClient.connect({ host: 'invalid-host' });
 expect(mockClient).toEmit('error');
 ```
 
+### 5. Logger Assertions Without Noise
+
+```typescript
+import { getLogger, setLogLevel } from '../src/shared/logger';
+
+// Default log level is "silent" in tests, so no console noise leaks.
+const logger = getLogger('ai-utils');
+jest.spyOn(logger, 'error');
+
+// Execute logic that should log an error.
+await expect(getPlan('goal')).rejects.toThrow();
+
+expect(logger.error).toHaveBeenCalled();
+// Restore the default level if you changed it in the test.
+setLogLevel('silent');
+```
+
 ## Benefits of This Approach
 
 1. **Reliability**: Tests always produce the same results

@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs';
 import WebSocket from 'ws';
+import { getLogger } from '../shared/logger';
 
 interface SessionData {
     id: string;
@@ -29,6 +30,11 @@ interface CommandLogEntry {
     executionTime: number;
     sessionId: string;
 }
+
+const logger = getLogger('server');
+const sshLogger = logger.child('ssh');
+const wsLogger = logger.child('ws');
+const commandLogger = logger.child('command');
 
 const APP_PASSWORD = process.env.APP_PASSWORD
     ? process.env.APP_PASSWORD
@@ -70,16 +76,12 @@ app.get('/', (req: Request, res: Response) => {
 
         res.send(html);
     } catch (error) {
-        log('Error serving index.html:', error);
+        logger.error('Error serving index.html:', error);
         res.status(500).send('Error loading page');
     }
 });
 
 const sessions = new Map<string, SessionData>();
-
-function log(...args: any[]): void {
-    console.log(new Date().toISOString(), ...args);
-}
 
 app.post('/auth/login', (req: any, res: any) => {
     if (!APP_PASSWORD) {
@@ -154,7 +156,7 @@ app.post('/api/command-log', (req: any, res: any) => {
                 logs = JSON.parse(data);
             }
         } catch (err) {
-            log('Error reading command logs:', err);
+            commandLogger.error('Error reading command logs:', err);
         }
 
         // Add new log entry
@@ -168,10 +170,10 @@ app.post('/api/command-log', (req: any, res: any) => {
         // Write back to file
         fs.writeFileSync(logFile, JSON.stringify(logs, null, 2));
 
-        log(`Command logged: ${command}`);
+        commandLogger.info(`Command logged: ${command}`);
         res.json({ ok: true });
     } catch (error) {
-        log('Error saving command log:', error);
+        commandLogger.error('Error saving command log:', error);
         res.status(500).json({ error: 'Failed to save command log' });
     }
 });
@@ -209,7 +211,7 @@ function attachToSession(
     }
 
     session.ws = ws;
-    log(
+    wsLogger.debug(
         `WebSocket attached to session ${session.id} from ${(ws as any)._socket.remoteAddress}:${(ws as any)._socket.remotePort}`
     );
 
@@ -217,7 +219,7 @@ function attachToSession(
     function handleSshClose(reason: string): void {
         if (closed) return;
         closed = true;
-        log(
+        sshLogger.info(
             `SSH session ${session.id} closed (${reason}) for ${session.username}@${session.host}:${session.port}`
         );
         sessions.delete(session.id);
@@ -239,12 +241,12 @@ function attachToSession(
         );
         session.stream.on('end', () => handleSshClose('stream end'));
         session.stream.on('error', (err: Error) =>
-            log(`SSH stream error for session ${session.id}:`, err)
+            sshLogger.error(`SSH stream error for session ${session.id}:`, err)
         );
         session.conn.on('close', () => handleSshClose('conn close'));
         session.conn.on('end', () => handleSshClose('conn end'));
         session.conn.on('error', (err: Error) =>
-            log(`SSH connection error for session ${session.id}:`, err)
+            sshLogger.error(`SSH connection error for session ${session.id}:`, err)
         );
         session.sshListenersAdded = true;
     }
@@ -267,14 +269,14 @@ function attachToSession(
     });
 
     ws.on('close', (code: number, reason: Buffer) => {
-        log(
+        wsLogger.info(
             `WebSocket for session ${session.id} closed code=${code} reason=${reason.toString()}`
         );
         session.ws = undefined;
     });
 
     ws.on('error', (err: Error) => {
-        log(
+        wsLogger.error(
             `WebSocket error for session ${session.id} from ${(ws as any)._socket.remoteAddress}:${(ws as any)._socket.remotePort}:`,
             err
         );
@@ -297,7 +299,7 @@ app.ws('/terminal', (ws: WebSocket, req: any) => {
     if (sessionId) {
         if (sessions.has(sessionId as string)) {
             const session = sessions.get(sessionId as string)!;
-            log(
+            wsLogger.info(
                 `WebSocket reconnect from ${req.socket.remoteAddress}:${req.socket.remotePort} for session ${sessionId}`
             );
             attachToSession(ws as any, session, offset);
@@ -325,7 +327,7 @@ app.ws('/terminal', (ws: WebSocket, req: any) => {
     const password = (req.query.pass as string) || process.env.SSH_PASS;
     const port = parseInt(req.query.port as string, 10) || 22;
 
-    log(
+    wsLogger.info(
         `WebSocket connection from ${req.socket.remoteAddress}:${req.socket.remotePort} to SSH ${username}@${host}:${port}`
     );
 
@@ -354,10 +356,10 @@ app.ws('/terminal', (ws: WebSocket, req: any) => {
         username,
     };
     sessions.set(id, session);
-    log(`Created SSH session ${id} for ${username}@${host}:${port}`);
+    sshLogger.info(`Created SSH session ${id} for ${username}@${host}:${port}`);
 
     conn.on('ready', () => {
-        log(
+        sshLogger.info(
             `SSH connection ready for session ${id} to ${username}@${host}:${port}`
         );
         conn.shell(
@@ -385,7 +387,7 @@ app.ws('/terminal', (ws: WebSocket, req: any) => {
         );
     })
         .on('error', (err: Error) => {
-            log(
+            sshLogger.error(
                 `SSH connection error for session ${id} to ${username}@${host}:${port}:`,
                 err
             );
@@ -412,7 +414,7 @@ app.ws('/terminal', (ws: WebSocket, req: any) => {
 // Only start the server if this file is being run directly (not imported)
 if (require.main === module) {
     app.listen(PORT, () => {
-        log(`Web terminal server running at http://localhost:${PORT}`);
+        logger.info(`Web terminal server running at http://localhost:${PORT}`);
     });
 }
 
