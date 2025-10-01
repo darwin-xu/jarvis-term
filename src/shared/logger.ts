@@ -1,6 +1,9 @@
 type LogLevel = 'silent' | 'error' | 'warn' | 'info' | 'debug';
 
-type ConsoleMethods = Pick<Console, 'error' | 'warn' | 'info' | 'debug' | 'log'>;
+type ConsoleMethods = Pick<
+    Console,
+    'error' | 'warn' | 'info' | 'debug' | 'log'
+>;
 
 const levelWeights: Record<LogLevel, number> = {
     silent: 0,
@@ -14,7 +17,9 @@ const defaultConsole: ConsoleMethods = {
     error: console.error.bind(console),
     warn: console.warn.bind(console),
     info: console.info ? console.info.bind(console) : console.log.bind(console),
-    debug: console.debug ? console.debug.bind(console) : console.log.bind(console),
+    debug: console.debug
+        ? console.debug.bind(console)
+        : console.log.bind(console),
     log: console.log.bind(console),
 };
 
@@ -23,10 +28,12 @@ function inferInitialLevel(): LogLevel {
     const processEnv = typeof process !== 'undefined' ? process.env : undefined;
     const globalObject =
         typeof globalThis !== 'undefined' ? (globalThis as any) : undefined;
-    const windowConfig = globalObject?.__LOG_LEVEL ?? globalObject?.window?.__LOG_LEVEL;
+    const windowConfig =
+        globalObject?.__LOG_LEVEL ?? globalObject?.window?.__LOG_LEVEL;
 
-    const configuredLevel =
-        (processEnv?.LOG_LEVEL || windowConfig)?.toLowerCase?.();
+    const configuredLevel = (
+        processEnv?.LOG_LEVEL || windowConfig
+    )?.toLowerCase?.();
 
     if (configuredLevel && configuredLevel in levelWeights) {
         return configuredLevel as LogLevel;
@@ -105,7 +112,9 @@ function createLogger(namespace?: string) {
             }
         },
         child: (childNamespace: string) =>
-            createLogger(namespace ? `${namespace}:${childNamespace}` : childNamespace),
+            createLogger(
+                namespace ? `${namespace}:${childNamespace}` : childNamespace
+            ),
     };
 }
 
